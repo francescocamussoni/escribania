@@ -76,6 +76,13 @@ Every task MUST strictly follow this format:
 - [ ] [TaskID] [P?] [Story?] Description with file path
 ```
 
+**For UI tasks**, the `figma:` field is additionally REQUIRED on the next line:
+
+```text
+- [ ] [TaskID] [P?] [Story?] Description with UI file path
+  - figma: <full-figma-url-or-node-id>
+```
+
 **Format Components**:
 
 1. **Checkbox**: ALWAYS start with `- [ ]` (markdown checkbox)
@@ -91,14 +98,30 @@ Every task MUST strictly follow this format:
 
 **Examples**:
 
-- - CORRECT: `- [ ] T001 Create project structure per implementation plan`
-- - CORRECT: `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
-- - CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
-- - CORRECT: `- [ ] T014 [US1] Implement UserService in src/services/user_service.py`
-- - WRONG: `- [ ] Create User model` (missing ID and Story label)
-- - WRONG: `T001 [US1] Create model` (missing checkbox)
-- - WRONG: `- [ ] [US1] Create User model` (missing Task ID)
-- - WRONG: `- [ ] T001 [US1] Create model` (missing file path)
+- CORRECT (non-UI): `- [ ] T001 Create project structure per implementation plan`
+- CORRECT (non-UI): `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
+- CORRECT (UI): 
+  ```
+  - [ ] T012 [P] [US1] Create Button component in src/components/Button.tsx
+    - figma: https://www.figma.com/design/AbCdEf/MyApp?node-id=123:456
+  ```
+- CORRECT (UI):
+  ```
+  - [ ] T014 [US1] Implement LoginScreen in src/screens/LoginScreen.tsx
+    - figma: https://www.figma.com/design/AbCdEf/MyApp?node-id=78:910
+  ```
+- WRONG (UI missing figma field): `- [ ] T012 [P] [US1] Create Button.tsx` — **INCOMPLETE: UI task without figma: field**
+- WRONG: `- [ ] Create User model` (missing ID and Story label)
+- WRONG: `T001 [US1] Create model` (missing checkbox)
+- WRONG: `- [ ] [US1] Create User model` (missing Task ID)
+- WRONG: `- [ ] T001 [US1] Create model` (missing file path)
+
+**Figma field validation rules:**
+
+- The `figma:` value MUST be either a full URL (`https://www.figma.com/design/...?node-id=...`) or a bare node-id (`NNNN:NNNN`)
+- The `figma:` field is ONLY required for tasks whose `file_path` targets UI files (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.html`)
+- If the `spec.md` does not contain a Figma URL for a UI section, the command MUST pause and request it before generating that task
+- A task with a UI file path and no `figma:` field is considered **malformed** and MUST NOT be accepted by `/spec-kitti.implement`
 
 ### Task Organization
 

@@ -1,0 +1,44 @@
+schema: 1
+catalog_source: embedded
+catalog_version: 2.2.5
+rules_schema: 1
+repository: null
+ide_assistant: cursor-agent
+last_update: '2026-07-18T13:16:09Z'
+update_policy: minor
+installed_rules:
+  core:
+  - id: security-main
+    version: 1.0.0
+    materialize_as: security-main.mdc
+  optional:
+  - id: core.design-patterns.golden_rules.adapter
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_adapter.mdc
+  - id: core.design-patterns.golden_rules.builder
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_builder.mdc
+  - id: core.design-patterns.golden_rules.composite
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_composite.mdc
+  - id: core.design-patterns.golden_rules.facade
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_facade.mdc
+  - id: core.design-patterns.golden_rules.factory-method
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_factory-method.mdc
+  - id: core.design-patterns.golden_rules.mediator
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_mediator.mdc
+  - id: core.design-patterns.golden_rules.observer
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_observer.mdc
+  - id: core.design-patterns.golden_rules.singleton
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_singleton.mdc
+  - id: core.design-patterns.golden_rules.strategy
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_strategy.mdc
+  - id: core.design-patterns.golden_rules.template-method
+    version: 1.0.0
+    materialize_as: core_design-patterns_golden_rules_template-method.mdc

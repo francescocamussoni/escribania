@@ -1,0 +1,652 @@
+:root {
+  color: #1a1a2e;
+  background: #f4f6fb;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell--loading {
+  align-items: center;
+  justify-content: center;
+}
+
+.app-main {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #16213e;
+  color: #fff;
+}
+
+.navbar__brand {
+  font-weight: 700;
+}
+
+.navbar__links {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.navbar__link {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.375rem;
+  opacity: 0.85;
+}
+
+.navbar__link--active,
+.navbar__link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 1;
+}
+
+.navbar__user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.navbar__logout {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.login-card {
+  width: min(100%, 380px);
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(22, 33, 62, 0.12);
+  display: grid;
+  gap: 1rem;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.login-card__subtitle {
+  margin: 0;
+  color: #5b6477;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field input {
+  border: 1px solid #c9d1e0;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.button {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+}
+
+.button--primary {
+  background: #0f4c81;
+  color: #fff;
+}
+
+.button--primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.form-error {
+  margin: 0;
+  color: #b42318;
+}
+
+.form-success {
+  margin: 0;
+  color: #1b5e20;
+}
+
+.placeholder-page h1 {
+  margin-top: 0;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-header--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.page-header h1 {
+  margin: 0.25rem 0 0;
+}
+
+.page-muted {
+  margin: 0.25rem 0 0;
+  color: #5b6477;
+}
+
+.text-link {
+  color: #0f4c81;
+  font-size: 0.95rem;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.button--secondary {
+  background: #e8edf5;
+  color: #1a1a2e;
+}
+
+.button--danger {
+  background: #b42318;
+  color: #fff;
+}
+
+.field select,
+.field input[readonly] {
+  border: 1px solid #c9d1e0;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+}
+
+.field input[readonly] {
+  background: #f4f6fb;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filter-tabs__tab {
+  border: 1px solid #c9d1e0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.filter-tabs__tab--active {
+  background: #0f4c81;
+  border-color: #0f4c81;
+  color: #fff;
+}
+
+.escritura-list,
+.gastos-list {
+  background: #fff;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(22, 33, 62, 0.08);
+}
+
+.escritura-list__header,
+.escritura-list__row,
+.gastos-list__header,
+.gastos-list__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.8fr 1.2fr;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  align-items: center;
+}
+
+.gastos-list__header,
+.gastos-list__row {
+  grid-template-columns: 2fr 0.8fr 1fr 1fr;
+}
+
+.escritura-list__header,
+.gastos-list__header {
+  background: #f4f6fb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5b6477;
+}
+
+.escritura-list__row {
+  border-top: 1px solid #e8edf5;
+  transition: background 0.15s ease;
+}
+
+.escritura-list__row:hover {
+  background: #f8faff;
+}
+
+.escritura-list__nombre {
+  font-weight: 600;
+}
+
+.escritura-list__amount,
+.gastos-list__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge--abierta {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.badge--cerrada {
+  background: #eceff1;
+  color: #455a64;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 33, 62, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 20;
+}
+
+.modal-card {
+  width: min(100%, 520px);
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 16px 40px rgba(22, 33, 62, 0.2);
+}
+
+.modal-card h2 {
+  margin-top: 0;
+}
+
+.detail-card {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(22, 33, 62, 0.08);
+}
+
+.detail-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.escritura-form__grid,
+.gasto-form__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.gasto-form__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.escritura-form,
+.gasto-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.gasto-form {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e8edf5;
+}
+
+.gasto-form__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.factura-detalle {
+  display: grid;
+  gap: 1rem;
+}
+
+.factura-section {
+  border: 1px solid #e8edf5;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.factura-section__title {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  background: #f4f6fb;
+  font-size: 0.95rem;
+}
+
+.factura-section__rows {
+  padding: 0.25rem 0;
+}
+
+.factura-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.92rem;
+}
+
+.factura-row--subtotal {
+  border-top: 1px solid #e8edf5;
+  font-weight: 600;
+  background: #fafbfd;
+}
+
+.factura-row__value--emphasis {
+  font-weight: 600;
+}
+
+.factura-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: #16213e;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.gastos-list__row {
+  border-top: 1px solid #e8edf5;
+}
+
+.gastos-list__direccion {
+  text-transform: capitalize;
+}
+
+.period-selector {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.period-selector .field {
+  min-width: 140px;
+}
+
+.period-label {
+  margin: 0 0 1rem;
+  font-weight: 600;
+  color: #0f4c81;
+}
+
+.liquidacion-resumen {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.liquidacion-resumen__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #16213e;
+  color: #fff;
+}
+
+.liquidacion-resumen__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.liquidacion-resumen__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(22, 33, 62, 0.08);
+}
+
+.liquidacion-resumen__label {
+  font-size: 0.85rem;
+  color: #5b6477;
+}
+
+.liquidacion-resumen__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.escribano-card,
+.pago-card {
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 16px rgba(22, 33, 62, 0.08);
+  overflow: hidden;
+}
+
+.escribano-card__header,
+.pago-card__header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.escribano-card__header h3,
+.pago-card__header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.escribano-card__total,
+.pago-card__total {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.escribano-card__chevron,
+.pago-card__chevron {
+  color: #5b6477;
+  font-size: 1.1rem;
+}
+
+.escribano-card__body,
+.pago-card__body {
+  padding: 0 1.25rem 1rem;
+  border-top: 1px solid #e8edf5;
+}
+
+.escribano-card__table,
+.pago-card__table {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.escribano-card__row,
+.pago-card__row {
+  display: grid;
+  grid-template-columns: 2fr 0.9fr 1fr 1fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.92rem;
+}
+
+.escribano-card__row--header,
+.pago-card__row--header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #5b6477;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.escribano-card__subtotal,
+.pago-card__subtotal {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.secretaria-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.secretaria-card {
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #f8faff;
+  border: 1px solid #e8edf5;
+}
+
+.secretaria-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.secretaria-card__header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.secretaria-card__monto {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.config-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.config-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .escritura-list__header,
+  .escritura-list__row,
+  .gastos-list__header,
+  .gastos-list__row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .escritura-list__amount,
+  .gastos-list__amount {
+    text-align: left;
+  }
+
+  .escritura-form__grid,
+  .gasto-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .config-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .liquidacion-resumen__grid,
+  .secretaria-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .escribano-card__row,
+  .pago-card__row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}

@@ -34,3 +34,5 @@ This project uses the **Spec-Kitti** workflow. Key locations:
 - Never modify source code without reading `memory/constitution.md` first (if it exists)
 - Never create files outside the paths defined in the active Work Unit
 - If `.spec-kitti/discovery/` exists → always respect the architectural layers in `discovery/architecture.md`
+- **UI tasks**: NEVER hardcode design values (colors, fonts, spacing) without first querying Figma via MCP — see `spec-kitti-figma.mdc`
+- **UI tasks**: The `conventions/` folder for UI assets is deprecated — Figma MCP is the single source of truth for all design tokens

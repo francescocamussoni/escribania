@@ -6,7 +6,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SPEC_KITTI_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SPEC_KITTI_DIR/.." && pwd)"
 
 # Cargar funciones comunes
 source "$SCRIPT_DIR/common.sh" 2>/dev/null || true
@@ -168,10 +169,45 @@ if [ -z "${JIRA_BASE_URL:-}" ]; then
 fi
 
 # ============================================================================
+# Verificar Python 3.11+
+# ============================================================================
+
+find_python() {
+    for cmd in python3.13 python3.12 python3.11 python3 python; do
+        if command -v "$cmd" &>/dev/null; then
+            local ver major minor
+            ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+            major=$(echo "$ver" | cut -d. -f1)
+            minor=$(echo "$ver" | cut -d. -f2)
+            if [[ "$major" -gt 3 ]] || { [[ "$major" -eq 3 ]] && [[ "$minor" -ge 11 ]]; }; then
+                echo "$cmd"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+PYTHON_CMD=""
+if ! PYTHON_CMD=$(find_python); then
+    echo -e "${RED}Error: Python 3.11+ no está instalado.${NC}" >&2
+    echo "" >&2
+    echo -e "Ejecutá el script de setup para instalarlo automáticamente:" >&2
+    echo -e "  ${YELLOW}bash $SPEC_KITTI_DIR/scripts/bash/setup-python.sh${NC}" >&2
+    echo "" >&2
+    echo -e "O instalalo manualmente:" >&2
+    echo -e "  macOS:  ${GREEN}brew install python@3.11${NC}" >&2
+    echo -e "  Ubuntu: ${GREEN}sudo apt install python3.11${NC}" >&2
+    exit 1
+fi
+
+[ "$JSON_OUTPUT" = false ] && echo -e "${GREEN}✓${NC} Python: $($PYTHON_CMD --version 2>&1)"
+
+# ============================================================================
 # Ejecutar sync
 # ============================================================================
 
-PYTHON_SCRIPT="$REPO_ROOT/scripts/python/sync_atlassian.py"
+PYTHON_SCRIPT="$SPEC_KITTI_DIR/scripts/python/sync_atlassian.py"
 
 if [ ! -f "$PYTHON_SCRIPT" ]; then
     echo -e "${RED}Error: Script de Python no encontrado: $PYTHON_SCRIPT${NC}" >&2
@@ -211,7 +247,7 @@ if [ "$JSON_OUTPUT" = false ]; then
     echo ""
 fi
 
-python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+"$PYTHON_CMD" "$PYTHON_SCRIPT" "${ARGS[@]}"
 EXIT_CODE=$?
 
 exit $EXIT_CODE

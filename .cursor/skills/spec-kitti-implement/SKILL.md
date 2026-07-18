@@ -28,8 +28,11 @@ Read in order:
 2. `.spec-kitti/discovery/architecture.md` — layers and patterns **(only if `.spec-kitti/discovery/` exists — legacy/modernization projects)**
 3. `.spec-kitti/discovery/modules.md` — module responsibilities **(only if `.spec-kitti/discovery/` exists — legacy/modernization projects)**
 4. `.spec-kitti/plan.md` — tech stack and coding patterns
+5. **For UI tasks** → `references/figma-ui-guide.md` — Figma MCP extraction and token mapping protocol
 
 > **Greenfield projects** (new codebase): `.spec-kitti/discovery/` won't exist. Skip steps 2 and 3 — derive structure from `plan.md` and the Work Unit itself.
+
+> **UI tasks**: A task is "UI" when its `file_path` targets `.tsx/.jsx/.vue/.svelte/.css/.scss` or subtasks mention components/layouts/styles. In that case, step 5 is mandatory.
 
 > The detailed reading order for the executor is defined in `references/executor.md` — this is just the high-level checklist.
 

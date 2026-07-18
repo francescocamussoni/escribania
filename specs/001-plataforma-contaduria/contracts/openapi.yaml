@@ -1,0 +1,791 @@
+openapi: 3.0.3
+info:
+  title: Plataforma Contable Escribanía API
+  version: 1.0.0
+  description: |
+    Internal accounting platform for a notary office (escribanía).
+    All endpoints require authentication (JWT in HttpOnly cookie).
+    All monetary amounts are NUMERIC strings to avoid floating-point issues.
+
+servers:
+  - url: /api/v1
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    # ─── Enums ───────────────────────────────────────────────────────────────
+    EstadoEscritura:
+      type: string
+      enum: [abierta, cerrada]
+
+    Escribano:
+      type: string
+      enum: [costanza, gabriel, victoria]
+
+    DireccionGasto:
+      type: string
+      enum: [entrada, salida]
+
+    # ─── Escritura ────────────────────────────────────────────────────────────
+    EscrituraInput:
+      type: object
+      required: [nombre, escribano, usd_value, dolar_mep, dolar_nacion]
+      properties:
+        nombre:
+          type: string
+          maxLength: 255
+          description: Free-text name for the escritura
+        escribano:
+          $ref: '#/components/schemas/Escribano'
+        usd_value:
+          type: string
+          description: Property value in USD (NUMERIC string, > 0)
+          example: "105000.00"
+        dolar_mep:
+          type: string
+          description: MEP exchange rate (> 0)
+          example: "1450.34"
+        dolar_nacion:
+          type: string
+          description: Banco Nación exchange rate (> 0)
+          example: "1425.00"
+
+    EscrituraResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        estado:
+          $ref: '#/components/schemas/EstadoEscritura'
+        escribano:
+          $ref: '#/components/schemas/Escribano'
+        usd_value:
+          type: string
+        dolar_mep:
+          type: string
+        dolar_nacion:
+          type: string
+        config_version_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+        factura:
+          $ref: '#/components/schemas/FacturaPrincipalResponse'
+        gastos_adicionales:
+          type: array
+          items:
+            $ref: '#/components/schemas/GastoAdicionalResponse'
+
+    EscrituraListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        estado:
+          $ref: '#/components/schemas/EstadoEscritura'
+        escribano:
+          $ref: '#/components/schemas/Escribano'
+        usd_value:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        total_factura:
+          type: string
+          description: Grand total from FacturaPrincipal
+
+    # ─── FacturaPrincipal ────────────────────────────────────────────────────
+    FacturaPrincipalResponse:
+      type: object
+      description: All calculated monetary amounts for one Escritura
+      properties:
+        id:
+          type: string
+          format: uuid
+        monto_base_mep:
+          type: string
+        precio_base_nacion:
+          type: string
+        honorario_principal:
+          type: string
+        certificacion:
+          type: string
+        suma_hon_cert:
+          type: string
+        aporte_12pct:
+          type: string
+        cinco_pct_hon:
+          type: string
+        firma_honorarios:
+          type: string
+        subtotal_honorarios:
+          type: string
+        art2_a:
+          type: string
+        art12_a:
+          type: string
+        art12_c:
+          type: string
+        art12_f:
+          type: string
+        total_leyes_notariales:
+          type: string
+        tasa_3pm:
+          type: string
+        sellos:
+          type: string
+        tasa_75pm:
+          type: string
+        firma_impuestos:
+          type: string
+        total_impuestos:
+          type: string
+        inscripcion:
+          type: string
+        protocolo:
+          type: string
+        ii_certificados:
+          type: string
+        municipio:
+          type: string
+        fotocopias_urgentes:
+          type: string
+        certificaciones_extra:
+          type: string
+        catastro:
+          type: string
+        testimonio:
+          type: string
+        concuerda:
+          type: string
+        informes_notariales:
+          type: string
+        extracto:
+          type: string
+        fotocopias_simples:
+          type: string
+        tasas_minimas:
+          type: string
+        total_gastos_admin:
+          type: string
+        total_factura:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    # ─── GastoAdicional ─────────────────────────────────────────────────────
+    GastoAdicionalInput:
+      type: object
+      required: [concepto, monto, direccion, fecha]
+      properties:
+        concepto:
+          type: string
+          maxLength: 500
+        monto:
+          type: string
+          description: Positive amount (NUMERIC string)
+          example: "50000.00"
+        direccion:
+          $ref: '#/components/schemas/DireccionGasto'
+        fecha:
+          type: string
+          format: date
+
+    GastoAdicionalResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        concepto:
+          type: string
+        monto:
+          type: string
+        direccion:
+          $ref: '#/components/schemas/DireccionGasto'
+        fecha:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    # ─── Liquidación ────────────────────────────────────────────────────────
+    LiquidacionResumen:
+      type: object
+      properties:
+        anio:
+          type: integer
+        mes:
+          type: integer
+        total_costanza:
+          type: string
+        total_gabriel:
+          type: string
+        total_victoria:
+          type: string
+        total_global:
+          type: string
+        por_escribano:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiquidacionEscribano'
+
+    LiquidacionEscribano:
+      type: object
+      properties:
+        escribano:
+          $ref: '#/components/schemas/Escribano'
+        total:
+          type: string
+          description: Sum of (honorario_principal + certificacion) for this escribano
+        escrituras:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiquidacionEscrituraItem'
+
+    LiquidacionEscrituraItem:
+      type: object
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        estado:
+          $ref: '#/components/schemas/EstadoEscritura'
+        honorario_principal:
+          type: string
+        certificacion:
+          type: string
+        subtotal:
+          type: string
+
+    # ─── Pago de Salarios ────────────────────────────────────────────────────
+    PagoSalariosResumen:
+      type: object
+      properties:
+        anio:
+          type: integer
+        mes:
+          type: integer
+        escribanos:
+          type: array
+          items:
+            $ref: '#/components/schemas/PagoEscribano'
+        secretarias:
+          type: array
+          items:
+            $ref: '#/components/schemas/PagoSecretaria'
+
+    PagoEscribano:
+      type: object
+      properties:
+        nombre:
+          type: string
+          example: "Costanza"
+        monto_total:
+          type: string
+        escrituras:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiquidacionEscrituraItem'
+
+    PagoSecretaria:
+      type: object
+      properties:
+        nombre:
+          type: string
+          example: "Graciela"
+        monto:
+          type: string
+        base_total:
+          type: string
+          description: Total salary pool before split
+
+    # ─── Configuración ───────────────────────────────────────────────────────
+    ConfiguracionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        honorario_pct:
+          type: string
+        honorario_min:
+          type: string
+        certificacion_pct:
+          type: string
+        aporte_pct:
+          type: string
+        cinco_pct_hon_pct:
+          type: string
+        cinco_pct_hon_min:
+          type: string
+        firma_honorarios:
+          type: string
+        art2_a_pct:
+          type: string
+        art12_a_pct:
+          type: string
+        art12_a_min:
+          type: string
+        art12_c_pct:
+          type: string
+        art12_f:
+          type: string
+        tasa_3pm_pct:
+          type: string
+        sellos_pct:
+          type: string
+        sellos_ajuste_fijo:
+          type: string
+        tasa_75pm_pct:
+          type: string
+        firma_impuestos:
+          type: string
+        inscripcion:
+          type: string
+        protocolo:
+          type: string
+        ii_certificados:
+          type: string
+        municipio:
+          type: string
+        fotocopias_urgentes:
+          type: string
+        certificaciones_extra:
+          type: string
+        catastro:
+          type: string
+        testimonio:
+          type: string
+        concuerda:
+          type: string
+        informes_notariales:
+          type: string
+        extracto:
+          type: string
+        fotocopias_simples:
+          type: string
+        tasas_minimas:
+          type: string
+        salario_secretarias_total:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ─── Auth ────────────────────────────────────────────────────────────────
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    # ─── SSE ─────────────────────────────────────────────────────────────────
+    SSEEvent:
+      description: |
+        Server-Sent Event payload.
+        Event types:
+          - escritura.created
+          - escritura.updated
+          - escritura.closed
+          - gasto.created
+          - liquidacion.updated
+      type: object
+      properties:
+        event:
+          type: string
+        data:
+          type: object
+
+    # ─── Errors ──────────────────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+
+paths:
+  # ─── Auth ──────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      summary: Login — obtain session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Authenticated; sets HttpOnly JWT cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: Logout — clears session cookie
+      responses:
+        '204':
+          description: Cookie cleared
+
+  /auth/me:
+    get:
+      summary: Get current user info
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  username:
+                    type: string
+                  nombre_display:
+                    type: string
+
+  # ─── Escrituras ────────────────────────────────────────────────────────────
+  /escrituras:
+    get:
+      summary: List escrituras with optional filters
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            $ref: '#/components/schemas/EstadoEscritura'
+          required: false
+        - name: escribano
+          in: query
+          schema:
+            $ref: '#/components/schemas/Escribano'
+          required: false
+        - name: anio
+          in: query
+          schema:
+            type: integer
+          required: false
+        - name: mes
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          required: false
+      responses:
+        '200':
+          description: List of escrituras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EscrituraListItem'
+
+    post:
+      summary: Create a new escritura (auto-generates FacturaPrincipal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscrituraInput'
+      responses:
+        '201':
+          description: Created escritura with full factura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrituraResponse'
+        '422':
+          description: Validation error (e.g. usd_value ≤ 0)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /escrituras/{escritura_id}:
+    get:
+      summary: Get full escritura detail (with factura and gastos)
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Full escritura detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrituraResponse'
+        '404':
+          description: Not found
+
+    patch:
+      summary: Update inputs of an open escritura (recalculates factura)
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                usd_value:
+                  type: string
+                dolar_mep:
+                  type: string
+                dolar_nacion:
+                  type: string
+                escribano:
+                  $ref: '#/components/schemas/Escribano'
+      responses:
+        '200':
+          description: Updated escritura with recalculated factura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrituraResponse'
+        '409':
+          description: Cannot modify a closed escritura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /escrituras/{escritura_id}/close:
+    post:
+      summary: Close an escritura (freezes factura, makes it immutable)
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Escritura closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrituraResponse'
+        '409':
+          description: Already closed
+
+  # ─── Gastos Adicionales ────────────────────────────────────────────────────
+  /escrituras/{escritura_id}/gastos:
+    post:
+      summary: Add a gasto adicional to an open escritura
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GastoAdicionalInput'
+      responses:
+        '201':
+          description: Gasto created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GastoAdicionalResponse'
+        '409':
+          description: Cannot add gasto to a closed escritura
+
+  # ─── Liquidación ───────────────────────────────────────────────────────────
+  /liquidacion:
+    get:
+      summary: Get liquidación summary for a given month
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: mes
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Monthly liquidación breakdown by escribano
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiquidacionResumen'
+
+  # ─── Pago de Salarios ──────────────────────────────────────────────────────
+  /salarios:
+    get:
+      summary: Get salary payment breakdown for a given month
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: mes
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Salary breakdown (escribanos + secretarias)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoSalariosResumen'
+
+  # ─── Configuración ─────────────────────────────────────────────────────────
+  /configuracion:
+    get:
+      summary: Get active financial configuration
+      responses:
+        '200':
+          description: Current (highest version) configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionResponse'
+
+    post:
+      summary: Save new configuration version (creates immutable new row)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfiguracionResponse'
+      responses:
+        '201':
+          description: New configuration version created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionResponse'
+        '422':
+          description: Validation error
+
+  /configuracion/history:
+    get:
+      summary: List all configuration versions (audit trail)
+      responses:
+        '200':
+          description: All versions ordered by version desc
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfiguracionResponse'
+
+  # ─── SSE (Real-time) ───────────────────────────────────────────────────────
+  /events:
+    get:
+      summary: Server-Sent Events stream for real-time updates
+      description: |
+        Subscribe to real-time changes. Event types emitted:
+        - `escritura.created` — new escritura created
+        - `escritura.updated` — escritura inputs changed (factura recalculated)
+        - `escritura.closed`  — escritura closed
+        - `gasto.created`     — gasto adicional added to an escritura
+        - `liquidacion.updated` — any change that affects the current month liquidación
+      responses:
+        '200':
+          description: SSE stream (text/event-stream)
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SSEEvent'
+
+  # ─── Health ────────────────────────────────────────────────────────────────
+  /health:
+    get:
+      summary: Health check (no auth required)
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok

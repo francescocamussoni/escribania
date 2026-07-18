@@ -42,7 +42,6 @@ If the dev's skills don't cover a topic, use these. Look for them in order — u
 Available guides:
 - `testing-guide.md`
 - `code-quality.md`
-- `security-audit.md`
 - `refactoring-guide.md`
 - `debugging-guide.md`
 - `documentation-guide.md`
@@ -67,7 +66,37 @@ The dev describes the task directly in the chat without a `.json` file. Read:
 - Derive `file_path`, `action`, and `subtasks` from the dev's description + `tasks.md` context.
 Apply the same code generation rules as Mode A — no shortcuts.
 
-### 5. Feedback (only in correction mode)
+### 5. Figma Design Context (UI tasks only)
+
+**Trigger:** Apply this step whenever the Work Unit `file_path` targets a UI file (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.html`) or the `subtasks` mention components, layouts, styles, or design tokens.
+
+**Action:** Before writing any UI code, read and follow:
+
+```
+references/figma-ui-guide.md   (project-level install)
+~/.cursor/skills/spec-kitti-implement/references/figma-ui-guide.md  (global install)
+```
+
+#### HARD STOP — Figma Reference Gatekeeper
+
+The very first action when processing a UI task is to verify a Figma reference exists.
+
+**Search in order:**
+1. Work Unit JSON → `figma_url` or `figma_node_id`
+2. `.spec-kitti/spec.md` → design section
+3. `.spec-kitti/tasks.md` → `figma:` field on the task
+
+**If no reference is found:**
+- **STOP immediately**
+- Do NOT generate any code, stubs, placeholders, or partial files
+- Emit the blocking error message (defined verbatim in `figma-ui-guide.md` § 1.0-ERR)
+- Wait for the developer to re-invoke the command with a valid Figma reference
+
+**If a reference is found:** proceed with the extraction protocol in `figma-ui-guide.md`.
+
+**Skip this step only if:** the Work Unit explicitly sets `figma_required: false` AND the task has zero design requirements of any kind.
+
+### 6. Feedback (only in correction mode)
 - `.spec-kitti/implementation/[WU-ID]-review-N.md` — reviewer's feedback to address
 
 ---
@@ -94,7 +123,6 @@ Apply the same code generation rules as Mode A — no shortcuts.
 **Scenario 3: Domain Logic (Payments)**
 - If `payments-domain/SKILL.md` exists → apply domain rules
 - Constitution → apply project-wide constraints
-- `security-audit.md` → apply security checks
 
 ### Before writing
 1. Read `constitution.md` — apply all principles, if it exists (no secrets in logs, validation at entry, etc.)
@@ -102,6 +130,7 @@ Apply the same code generation rules as Mode A — no shortcuts.
 3. **If `.spec-kitti/discovery/` does NOT exist** → derive module and layer from `plan.md` and the Work Unit `file_path`
 4. Read `plan.md` — apply the exact patterns for this layer (dependency injection, decorators, error handling)
 5. **Read all relevant dev skills** — apply their patterns and preferences
+6. **For UI tasks** → complete the Figma MCP extraction protocol in `references/figma-ui-guide.md` before writing any style or layout code
 
 ### While writing
 - Implement ALL subtasks — no stubs, no TODOs

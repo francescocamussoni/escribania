@@ -97,19 +97,7 @@ Apply checks from:
 
 **Fail condition**: Security issue → status: `REJECTED`; quality issue → `NEEDS_REVISION`
 
-### Level 5 — Security Audit (CRITICAL · 10%)
-Apply checks from:
-- Dev's security skills (if present)
-- `spec-kitti-implement/references/security-audit.md` (baseline)
-
-- [ ] No SQL injection risks
-- [ ] No XSS vulnerabilities
-- [ ] Authentication/authorization checks present
-- [ ] Secrets from environment variables only
-
-**Fail condition**: Security vulnerability → status: `REJECTED`
-
-### Level 6 — Maintainability (WARNING · 5%)
+### Level 5 — Maintainability (WARNING · 5%)
 - [ ] Functions ≤ 50 lines
 - [ ] No obvious code duplication
 - [ ] Clear variable and function names
@@ -125,7 +113,7 @@ Apply checks from:
 | Level 0 blocking/critical failure | `REJECTED` |
 | Level 0 error/must-fix failure | `NEEDS_REVISION` |
 | Level 0 warning/suggestion | `APPROVED` with warnings |
-| Level 1 or Level 4/5 security failure | `REJECTED` |
+| Level 1 or Level 4 security failure | `REJECTED` |
 | Level 2, 3, or 4 quality failure | `NEEDS_REVISION` |
 | All levels pass (warnings allowed) | `APPROVED` |
 

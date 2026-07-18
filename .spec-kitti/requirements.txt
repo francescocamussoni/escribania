@@ -14,4 +14,3 @@ python-dotenv>=1.0.0
 # CLI utilities (opcional, para mejor experiencia)
 rich>=13.0.0
 
-

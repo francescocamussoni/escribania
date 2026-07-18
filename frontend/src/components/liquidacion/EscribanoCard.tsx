@@ -1,0 +1,65 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import type { LiquidacionEscribano } from "@/types/api";
+import { formatMoney, labelEscribano, labelEstado } from "@/utils/format";
+
+interface EscribanoCardProps {
+  grupo: LiquidacionEscribano;
+}
+
+export function EscribanoCard({ grupo }: EscribanoCardProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <article className="escribano-card">
+      <button
+        type="button"
+        className="escribano-card__header"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+      >
+        <div>
+          <h3>{labelEscribano(grupo.escribano)}</h3>
+          <p className="page-muted">
+            {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="escribano-card__total">{formatMoney(grupo.total)}</div>
+        <span className="escribano-card__chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+      </button>
+
+      {expanded ? (
+        <div className="escribano-card__body">
+          {grupo.escrituras.length === 0 ? (
+            <p className="page-muted">Sin escrituras en este período.</p>
+          ) : (
+            <div className="escribano-card__table">
+              <div className="escribano-card__row escritano-card__row--header">
+                <span>Escritura</span>
+                <span>Estado</span>
+                <span>Honorario</span>
+                <span>Certificación</span>
+                <span>Subtotal</span>
+              </div>
+              {grupo.escrituras.map((item) => (
+                <div key={item.escritura_id} className="escribano-card__row">
+                  <Link to={`/escrituras/${item.escritura_id}`} className="text-link">
+                    {item.nombre}
+                  </Link>
+                  <span>
+                    <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
+                  </span>
+                  <span>{formatMoney(item.honorario_principal)}</span>
+                  <span>{formatMoney(item.certificacion)}</span>
+                  <span className="escribano-card__subtotal">{formatMoney(item.subtotal)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </article>
+  );
+}
