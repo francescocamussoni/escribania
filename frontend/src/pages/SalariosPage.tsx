@@ -23,7 +23,9 @@ export function SalariosPage() {
       <header className="page-header page-header--stacked">
         <div>
           <h1>Pago de salarios</h1>
-          <p className="page-muted">Desglose de pagos a escribanos y secretarias por mes.</p>
+          <p className="page-muted">
+            Pagos a escribanos según cobros reales del mes; secretarias sin cambio.
+          </p>
         </div>
         <div className="period-selector">
           <label className="field">

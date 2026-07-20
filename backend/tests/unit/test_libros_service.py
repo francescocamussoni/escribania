@@ -6,24 +6,14 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.escritura import EstadoEscritura
-from models.gasto_adicional import DireccionGasto, GastoAdicional
+from models.pago_cliente import PagoCliente
+from models.pago_colegio import PagoColegio
 from services.libros_service import get_libro_entrada, get_libro_salida
-from helpers.escritura_factory import (
-    CANONICAL_CERTIFICACION,
-    CANONICAL_HONORARIO,
-    CANONICAL_SUBTOTAL,
-    insert_test_escritura,
-)
+from helpers.escritura_factory import insert_test_escritura
 
 TEST_YEAR = 2026
 TEST_MONTH = 7
-
-CANONICAL_IMPUESTOS_TOTAL = Decimal("5311489.50")
-CANONICAL_LEYES_TOTAL = Decimal("1532857.00")
-CANONICAL_GASTOS_ADMIN_TOTAL = Decimal("95444.77")
-CANONICAL_SALIDA_TOTAL = (
-    CANONICAL_IMPUESTOS_TOTAL + CANONICAL_LEYES_TOTAL + CANONICAL_GASTOS_ADMIN_TOTAL
-)
+PAYMENT_DAY = 15
 
 pytestmark = pytest.mark.usefixtures("isolated_liquidacion_month")
 
@@ -32,33 +22,56 @@ def _dt(day: int) -> datetime:
     return datetime(TEST_YEAR, TEST_MONTH, day, 12, 0, 0, tzinfo=UTC)
 
 
-def _prev_month_dt(day: int) -> datetime:
-    return datetime(TEST_YEAR, TEST_MONTH - 1, day, 12, 0, 0, tzinfo=UTC)
+def _payment_date(day: int = PAYMENT_DAY) -> date:
+    return date(TEST_YEAR, TEST_MONTH, day)
 
 
-async def _insert_gasto(
+def _prev_month_payment_date(day: int = 12) -> date:
+    return date(TEST_YEAR, TEST_MONTH - 1, day)
+
+
+async def _insert_pago_cliente(
     session: AsyncSession,
     escritura_id: uuid.UUID,
     *,
     concepto: str,
     monto: Decimal,
-    direccion: DireccionGasto,
-) -> GastoAdicional:
-    gasto = GastoAdicional(
+    fecha: date,
+) -> PagoCliente:
+    pago = PagoCliente(
         id=uuid.uuid4(),
         escritura_id=escritura_id,
         concepto=concepto,
         monto=monto,
-        direccion=direccion,
-        fecha=date(TEST_YEAR, TEST_MONTH, 15),
+        fecha=fecha,
     )
-    session.add(gasto)
+    session.add(pago)
     await session.commit()
-    return gasto
+    return pago
+
+
+async def _insert_pago_colegio(
+    session: AsyncSession,
+    escritura_id: uuid.UUID,
+    *,
+    concepto: str,
+    monto: Decimal,
+    fecha: date,
+) -> PagoColegio:
+    pago = PagoColegio(
+        id=uuid.uuid4(),
+        escritura_id=escritura_id,
+        concepto=concepto,
+        monto=monto,
+        fecha=fecha,
+    )
+    session.add(pago)
+    await session.commit()
+    return pago
 
 
 @pytest.mark.asyncio
-async def test_libro_entrada_includes_honorarios_certificacion_and_gastos_entrada(
+async def test_libro_entrada_only_includes_pagos_cliente_del_mes(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -71,25 +84,23 @@ async def test_libro_entrada_includes_honorarios_certificacion_and_gastos_entrad
             nombre="Entrada Test",
         )
         cleanup_escrituras.append(escritura.id)
-        await _insert_gasto(
+        await _insert_pago_cliente(
             session,
             escritura.id,
             concepto="Anticipo cliente",
             monto=Decimal("100000.00"),
-            direccion=DireccionGasto.ENTRADA,
+            fecha=_payment_date(),
         )
         libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
 
     conceptos = {linea.concepto for linea in libro.lineas}
-    assert "Honorarios Profesionales" in conceptos
-    assert "Certificación" in conceptos
-    assert "Anticipo cliente" in conceptos
-    assert "Sellos Fiscales" not in conceptos
-    assert "Ing. Brutos (3‰)" not in conceptos
+    assert conceptos == {"Anticipo cliente"}
+    assert "Honorarios Profesionales" not in conceptos
+    assert "Certificaci?n" not in conceptos
 
 
 @pytest.mark.asyncio
-async def test_libro_entrada_total_matches_sum_of_lineas(
+async def test_libro_entrada_total_matches_sum_of_pagos(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -97,16 +108,23 @@ async def test_libro_entrada_total_matches_sum_of_lineas(
     async with session_factory() as session:
         escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(6))
         cleanup_escrituras.append(escritura.id)
-        await _insert_gasto(
+        await _insert_pago_cliente(
             session,
             escritura.id,
-            concepto="Depósito",
+            concepto="Dep?sito",
             monto=Decimal("50000.00"),
-            direccion=DireccionGasto.ENTRADA,
+            fecha=_payment_date(),
+        )
+        await _insert_pago_cliente(
+            session,
+            escritura.id,
+            concepto="Segundo pago",
+            monto=Decimal("25000.00"),
+            fecha=_payment_date(20),
         )
         libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
 
-    expected = CANONICAL_SUBTOTAL + Decimal("50000.00")
+    expected = Decimal("75000.00")
     assert libro.total == expected
     assert sum((linea.monto for linea in libro.lineas), Decimal("0")) == expected
 
@@ -125,44 +143,24 @@ async def test_libro_entrada_lines_have_traceability(
             nombre="Trazabilidad Entrada",
         )
         cleanup_escrituras.append(escritura.id)
+        await _insert_pago_cliente(
+            session,
+            escritura.id,
+            concepto="Pago trazable",
+            monto=Decimal("1000.00"),
+            fecha=_payment_date(10),
+        )
         libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
 
-    for linea in libro.lineas:
-        assert linea.escritura_id == str(escritura.id)
-        assert linea.escritura_nombre == "Trazabilidad Entrada"
-        assert linea.fecha_escritura == _dt(7).date()
+    assert len(libro.lineas) == 1
+    linea = libro.lineas[0]
+    assert linea.escritura_id == str(escritura.id)
+    assert linea.escritura_nombre == "Trazabilidad Entrada"
+    assert linea.fecha_pago == _payment_date(10)
 
 
 @pytest.mark.asyncio
-async def test_libro_entrada_includes_open_and_closed_escrituras_in_month(
-    session_factory: async_sessionmaker[AsyncSession],
-    seeded_config,
-    cleanup_escrituras: list,
-) -> None:
-    async with session_factory() as session:
-        abierta = await insert_test_escritura(
-            session,
-            seeded_config,
-            created_at=_dt(8),
-            estado=EstadoEscritura.ABIERTA,
-            nombre="Abierta",
-        )
-        cerrada = await insert_test_escritura(
-            session,
-            seeded_config,
-            created_at=_dt(9),
-            estado=EstadoEscritura.CERRADA,
-            nombre="Cerrada",
-        )
-        cleanup_escrituras.extend([abierta.id, cerrada.id])
-        libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
-
-    nombres = {linea.escritura_nombre for linea in libro.lineas}
-    assert {"Abierta", "Cerrada"}.issubset(nombres)
-
-
-@pytest.mark.asyncio
-async def test_libro_entrada_excludes_previous_month_escrituras(
+async def test_libro_entrada_excludes_pagos_from_previous_month(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -171,38 +169,86 @@ async def test_libro_entrada_excludes_previous_month_escrituras(
         escritura = await insert_test_escritura(
             session,
             seeded_config,
-            created_at=_prev_month_dt(12),
+            created_at=_prev_month_payment_date(),
             nombre="Mes Anterior",
         )
         cleanup_escrituras.append(escritura.id)
+        await _insert_pago_cliente(
+            session,
+            escritura.id,
+            concepto="Pago viejo",
+            monto=Decimal("99999.00"),
+            fecha=_prev_month_payment_date(),
+        )
         libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
 
-    assert all(linea.escritura_id != str(escritura.id) for linea in libro.lineas)
+    assert libro.lineas == []
     assert libro.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio
-async def test_libro_entrada_canonical_fixture_total(
+async def test_libro_entrada_resumen_deudas_for_open_escrituras_with_saldo(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
     async with session_factory() as session:
-        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(2))
-        cleanup_escrituras.append(escritura.id)
+        con_deuda = await insert_test_escritura(
+            session,
+            seeded_config,
+            created_at=_dt(8),
+            estado=EstadoEscritura.ABIERTA,
+            nombre="Con deuda",
+        )
+        pagada = await insert_test_escritura(
+            session,
+            seeded_config,
+            created_at=_dt(9),
+            estado=EstadoEscritura.ABIERTA,
+            nombre="Pagada parcial",
+        )
+        cleanup_escrituras.extend([con_deuda.id, pagada.id])
+        await _insert_pago_cliente(
+            session,
+            pagada.id,
+            concepto="Anticipo",
+            monto=Decimal("400000.00"),
+            fecha=_payment_date(),
+        )
         libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
 
-    honorario = next(
-        linea for linea in libro.lineas if linea.concepto == "Honorarios Profesionales"
+    deuda_ids = {item.escritura_id for item in libro.resumen_deudas}
+    assert str(con_deuda.id) in deuda_ids
+    assert str(pagada.id) in deuda_ids
+    con_deuda_item = next(
+        item for item in libro.resumen_deudas if item.escritura_id == str(con_deuda.id)
     )
-    certificacion = next(linea for linea in libro.lineas if linea.concepto == "Certificación")
-    assert honorario.monto == CANONICAL_HONORARIO
-    assert certificacion.monto == CANONICAL_CERTIFICACION
-    assert libro.total == CANONICAL_SUBTOTAL
+    assert con_deuda_item.saldo_pendiente == con_deuda_item.costo_total
+    assert con_deuda_item.total_pagado == Decimal("0.00")
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_includes_individual_items_not_honorarios(
+async def test_libro_entrada_resumen_deudas_excludes_closed_escrituras(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    async with session_factory() as session:
+        cerrada = await insert_test_escritura(
+            session,
+            seeded_config,
+            created_at=_dt(10),
+            estado=EstadoEscritura.CERRADA,
+            nombre="Cerrada",
+        )
+        cleanup_escrituras.append(cerrada.id)
+        libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+
+    assert all(item.escritura_id != str(cerrada.id) for item in libro.resumen_deudas)
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_only_includes_pagos_colegio_del_mes(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -210,25 +256,23 @@ async def test_libro_salida_includes_individual_items_not_honorarios(
     async with session_factory() as session:
         escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(10))
         cleanup_escrituras.append(escritura.id)
-        await _insert_gasto(
+        await _insert_pago_colegio(
             session,
             escritura.id,
-            concepto="Pago proveedor",
+            concepto="Aporte Colegio",
             monto=Decimal("25000.00"),
-            direccion=DireccionGasto.SALIDA,
+            fecha=_payment_date(),
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
     conceptos = {linea.concepto for linea in libro.lineas}
-    assert "Sellos Fiscales" in conceptos
-    assert "Inscripción" in conceptos
+    assert conceptos == {"Aporte Colegio"}
+    assert "Sellos Fiscales" not in conceptos
     assert "Honorarios Profesionales" not in conceptos
-    assert "Certificación" not in conceptos
-    assert "Pago proveedor" in conceptos
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_excludes_gastos_entrada(
+async def test_libro_salida_excludes_pagos_cliente(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -236,20 +280,21 @@ async def test_libro_salida_excludes_gastos_entrada(
     async with session_factory() as session:
         escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(11))
         cleanup_escrituras.append(escritura.id)
-        await _insert_gasto(
+        await _insert_pago_cliente(
             session,
             escritura.id,
             concepto="Solo Entrada",
             monto=Decimal("1000.00"),
-            direccion=DireccionGasto.ENTRADA,
+            fecha=_payment_date(),
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    assert all(linea.concepto != "Solo Entrada" for linea in libro.lineas)
+    assert libro.lineas == []
+    assert libro.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_total_matches_sum_of_lineas(
+async def test_libro_salida_total_matches_sum_of_pagos(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -257,16 +302,23 @@ async def test_libro_salida_total_matches_sum_of_lineas(
     async with session_factory() as session:
         escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(12))
         cleanup_escrituras.append(escritura.id)
-        await _insert_gasto(
+        await _insert_pago_colegio(
             session,
             escritura.id,
-            concepto="Egreso extra",
+            concepto="Pago 1",
             monto=Decimal("30000.00"),
-            direccion=DireccionGasto.SALIDA,
+            fecha=_payment_date(),
+        )
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Pago 2",
+            monto=Decimal("15000.00"),
+            fecha=_payment_date(22),
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    assert libro.total == CANONICAL_SALIDA_TOTAL + Decimal("30000.00")
+    assert libro.total == Decimal("45000.00")
     assert sum((linea.monto for linea in libro.lineas), Decimal("0")) == libro.total
 
 
@@ -284,16 +336,24 @@ async def test_libro_salida_lines_have_traceability(
             nombre="Trazabilidad Salida",
         )
         cleanup_escrituras.append(escritura.id)
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Colegio trazable",
+            monto=Decimal("5000.00"),
+            fecha=_payment_date(18),
+        )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    assert libro.lineas
-    for linea in libro.lineas:
-        assert linea.escritura_id == str(escritura.id)
-        assert linea.escritura_nombre == "Trazabilidad Salida"
+    assert len(libro.lineas) == 1
+    linea = libro.lineas[0]
+    assert linea.escritura_id == str(escritura.id)
+    assert linea.escritura_nombre == "Trazabilidad Salida"
+    assert linea.fecha_pago == _payment_date(18)
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_canonical_impuestos_subtotal(
+async def test_libro_salida_excludes_pagos_from_previous_month(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -301,12 +361,14 @@ async def test_libro_salida_canonical_impuestos_subtotal(
     async with session_factory() as session:
         escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(14))
         cleanup_escrituras.append(escritura.id)
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Pago viejo",
+            monto=Decimal("80000.00"),
+            fecha=_prev_month_payment_date(),
+        )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    impuestos_labels = {"Ing. Brutos (3‰)", "Sellos Fiscales", "Tasa 7.5‰", "Firma Impuestos"}
-    impuestos_total = sum(
-        (linea.monto for linea in libro.lineas if linea.concepto in impuestos_labels),
-        Decimal("0"),
-    )
-    assert impuestos_total == CANONICAL_IMPUESTOS_TOTAL
-    assert libro.total == CANONICAL_SALIDA_TOTAL
+    assert libro.lineas == []
+    assert libro.total == Decimal("0.00")

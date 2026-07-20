@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from schemas.common import MoneyStr
 from schemas.factura import FacturaPrincipalResponse
-from schemas.gasto import GastoAdicionalResponse
+from schemas.pago_cliente import PagoClienteResponse
+from schemas.pago_colegio import PagoColegioResponse
 
 
 class EscrituraInput(BaseModel):
@@ -59,7 +60,11 @@ class EscrituraListItem(BaseModel):
     escribano_nombre: str
     usd_value: MoneyStr
     created_at: datetime
-    total_factura: MoneyStr
+    costo_total: MoneyStr
+    total_pagado: MoneyStr
+    saldo_pendiente: MoneyStr
+    pagada_al_100: bool
+    sobrepago: bool
 
 
 class EscrituraResponse(BaseModel):
@@ -78,4 +83,11 @@ class EscrituraResponse(BaseModel):
     closed_at: datetime | None
     updated_at: datetime
     factura: FacturaPrincipalResponse
-    gastos_adicionales: list[GastoAdicionalResponse] = Field(default_factory=list)
+    costo_total: MoneyStr
+    total_pagado: MoneyStr
+    saldo_pendiente: MoneyStr
+    pagada_al_100: bool
+    sobrepago: bool
+    total_leyes_notariales_proyectadas: MoneyStr
+    pagos_cliente: list[PagoClienteResponse] = Field(default_factory=list)
+    pagos_colegio: list[PagoColegioResponse] = Field(default_factory=list)

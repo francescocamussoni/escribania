@@ -23,7 +23,7 @@ export function LibroEntradaPage() {
         <div>
           <h1>Libro de Entrada</h1>
           <p className="page-muted">
-            Flujos de entrada del mes: honorarios, certificación y gastos adicionales tipo entrada.
+            Pagos del cliente por fecha de cobro en el mes, más resumen de deudas pendientes.
           </p>
         </div>
         <div className="period-selector">

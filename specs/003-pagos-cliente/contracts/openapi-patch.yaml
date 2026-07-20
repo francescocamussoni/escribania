@@ -1,0 +1,382 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Patch (feature 003-pagos-cliente)
+  description: |
+    New and modified endpoints added by feature 003-pagos-cliente.
+    Replaces gastos adicionales with pagos del cliente and pagos al colegio.
+    Liquidación and libros now reflect real cash flows.
+  version: 0.3.0
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+
+    # ── Pagos del Cliente ────────────────────────────────────────────────────
+
+    PagoClienteInput:
+      type: object
+      required: [monto, fecha]
+      additionalProperties: false
+      properties:
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "400000.00"
+        fecha:
+          type: string
+          format: date
+          example: "2026-07-20"
+        concepto:
+          type: string
+          maxLength: 500
+          default: ""
+
+    PagoClienteResponse:
+      type: object
+      required: [id, escritura_id, monto, fecha, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+          example: "400000.00"
+        fecha:
+          type: string
+          format: date
+        concepto:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Pagos al Colegio ───────────────────────────────────────────────────
+
+    PagoColegioInput:
+      type: object
+      required: [monto, fecha]
+      additionalProperties: false
+      properties:
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "150000.00"
+        fecha:
+          type: string
+          format: date
+        concepto:
+          type: string
+          maxLength: 500
+          default: ""
+
+    PagoColegioResponse:
+      type: object
+      required: [id, escritura_id, monto, fecha, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+        fecha:
+          type: string
+          format: date
+        concepto:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Escritura (modified) ─────────────────────────────────────────────────
+
+    EscrituraSaldoResponse:
+      type: object
+      required: [costo_total, total_pagado, saldo_pendiente, pagada_al_100, sobrepago]
+      properties:
+        costo_total:
+          type: string
+        total_pagado:
+          type: string
+        saldo_pendiente:
+          type: string
+        pagada_al_100:
+          type: boolean
+        sobrepago:
+          type: boolean
+        total_leyes_notariales_proyectadas:
+          type: string
+          description: Informative reference for Pagos al Colegio section (from factura)
+
+    # ── Libros (modified) ────────────────────────────────────────────────────
+
+    DeudaResumenItem:
+      type: object
+      required: [escritura_id, escritura_nombre, costo_total, total_pagado, saldo_pendiente]
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        escritura_nombre:
+          type: string
+        costo_total:
+          type: string
+        total_pagado:
+          type: string
+        saldo_pendiente:
+          type: string
+
+    LibroLineaResponse:
+      type: object
+      required: [escritura_id, escritura_nombre, concepto, monto, fecha_pago]
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        escritura_nombre:
+          type: string
+        concepto:
+          type: string
+        monto:
+          type: string
+        fecha_pago:
+          type: string
+          format: date
+
+    LibroEntradaResponse:
+      type: object
+      required: [anio, mes, lineas, resumen_deudas, total]
+      properties:
+        anio:
+          type: integer
+        mes:
+          type: integer
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibroLineaResponse'
+        resumen_deudas:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeudaResumenItem'
+        total:
+          type: string
+          description: Sum of client payments in the period
+
+    LibroSalidaResponse:
+      type: object
+      required: [anio, mes, lineas, total]
+      properties:
+        anio:
+          type: integer
+        mes:
+          type: integer
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibroLineaResponse'
+        total:
+          type: string
+          description: Sum of colegio payments in the period
+
+    # ── Liquidación (modified) ───────────────────────────────────────────────
+
+    LiquidacionEscrituraItem:
+      type: object
+      required: [escritura_id, nombre, estado, monto_cobrado]
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        estado:
+          type: string
+          enum: [abierta, cerrada]
+        monto_cobrado:
+          type: string
+          description: Sum of client payments received in the filtered month (lump sum)
+
+    ErrorSaldoPendiente:
+      type: object
+      required: [detail, saldo_pendiente]
+      properties:
+        detail:
+          type: string
+          example: "No se puede cerrar la escritura: saldo pendiente de cobro"
+        saldo_pendiente:
+          type: string
+          example: "600000.00"
+
+paths:
+
+  # ── Pagos del Cliente ──────────────────────────────────────────────────────
+
+  /escrituras/{escritura_id}/pagos-cliente:
+    post:
+      summary: Register a client payment against an escritura
+      operationId: createPagoCliente
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoClienteInput'
+      responses:
+        '201':
+          description: Payment registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoClienteResponse'
+        '400':
+          description: Invalid amount (zero, negative, or exceeds saldo pendiente)
+        '409':
+          description: Escritura is closed
+
+  # ── Pagos al Colegio ───────────────────────────────────────────────────────
+
+  /escrituras/{escritura_id}/pagos-colegio:
+    post:
+      summary: Register an escribanía payment to Colegio de Escribanos
+      operationId: createPagoColegio
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoColegioInput'
+      responses:
+        '201':
+          description: Colegio payment registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoColegioResponse'
+        '400':
+          description: Invalid amount (zero or negative)
+        '409':
+          description: Escritura is closed
+
+  # ── Escritura close (modified behavior) ────────────────────────────────────
+
+  /escrituras/{escritura_id}/cerrar:
+    post:
+      summary: Close an escritura (requires saldo_pendiente = 0)
+      operationId: closeEscritura
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Escritura closed
+        '409':
+          description: Cannot close — saldo pendiente > 0 or already closed
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorSaldoPendiente'
+
+  # ── Libros (modified) ──────────────────────────────────────────────────────
+
+  /libros/entrada:
+    get:
+      summary: Get Libro de Entrada for a given month (client payments only)
+      description: |
+        Returns one line per PagoCliente with fecha in the month.
+        Includes resumen_deudas for open escrituras with saldo_pendiente > 0.
+      operationId: getLibroEntrada
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: anio
+          in: query
+          schema:
+            type: integer
+        - name: mes
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Libro de Entrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibroEntradaResponse'
+
+  /libros/salida:
+    get:
+      summary: Get Libro de Salida for a given month (colegio payments only)
+      description: Returns one line per PagoColegio with fecha in the month.
+      operationId: getLibroSalida
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: anio
+          in: query
+          schema:
+            type: integer
+        - name: mes
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Libro de Salida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibroSalidaResponse'
+
+  # ── Deprecated ─────────────────────────────────────────────────────────────
+
+  /escrituras/{escritura_id}/gastos:
+    post:
+      summary: DEPRECATED — use /pagos-cliente or /pagos-colegio
+      deprecated: true
+      responses:
+        '410':
+          description: Endpoint removed; use pagos-cliente or pagos-colegio

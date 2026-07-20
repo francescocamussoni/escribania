@@ -1,19 +1,19 @@
 import { FormEvent, useState } from "react";
-import type { DireccionGasto, GastoAdicionalInput } from "@/types/api";
+import type { PagoClienteInput } from "@/types/api";
 import { friendlyApiError } from "@/utils/errors";
 
-interface GastoFormProps {
-  onSubmit: (payload: GastoAdicionalInput) => Promise<void>;
+interface PagoClienteFormProps {
+  saldoPendiente: string;
+  onSubmit: (payload: PagoClienteInput) => Promise<void>;
 }
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function GastoForm({ onSubmit }: GastoFormProps) {
+export function PagoClienteForm({ saldoPendiente, onSubmit }: PagoClienteFormProps) {
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
-  const [direccion, setDireccion] = useState<DireccionGasto>("salida");
   const [fecha, setFecha] = useState(todayIsoDate());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,20 +21,26 @@ export function GastoForm({ onSubmit }: GastoFormProps) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const montoNum = Number(monto);
+    const saldoNum = Number(saldoPendiente);
+    if (!Number.isNaN(montoNum) && !Number.isNaN(saldoNum) && montoNum > saldoNum) {
+      setError(`El monto no puede superar el saldo pendiente (${saldoPendiente}).`);
+      return;
+    }
+
     setLoading(true);
     try {
       await onSubmit({
         concepto: concepto.trim(),
         monto,
-        direccion,
         fecha,
       });
       setConcepto("");
       setMonto("");
-      setDireccion("salida");
       setFecha(todayIsoDate());
     } catch (err) {
-      setError(friendlyApiError(err, "No se pudo registrar el gasto."));
+      setError(friendlyApiError(err, "No se pudo registrar el pago del cliente."));
     } finally {
       setLoading(false);
     }
@@ -42,7 +48,7 @@ export function GastoForm({ onSubmit }: GastoFormProps) {
 
   return (
     <form className="gasto-form" onSubmit={handleSubmit}>
-      <h3 className="gasto-form__title">Agregar gasto adicional</h3>
+      <h3 className="gasto-form__title">Registrar pago del cliente</h3>
       <div className="gasto-form__grid">
         <label className="field">
           <span>Concepto</span>
@@ -50,7 +56,7 @@ export function GastoForm({ onSubmit }: GastoFormProps) {
             type="text"
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}
-            required
+            placeholder="Anticipo, saldo final…"
           />
         </label>
         <label className="field">
@@ -59,17 +65,11 @@ export function GastoForm({ onSubmit }: GastoFormProps) {
             type="number"
             step="0.01"
             min="0"
+            max={saldoPendiente}
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             required
           />
-        </label>
-        <label className="field">
-          <span>Dirección</span>
-          <select value={direccion} onChange={(e) => setDireccion(e.target.value as DireccionGasto)}>
-            <option value="entrada">Entrada</option>
-            <option value="salida">Salida</option>
-          </select>
         </label>
         <label className="field">
           <span>Fecha</span>
@@ -78,7 +78,7 @@ export function GastoForm({ onSubmit }: GastoFormProps) {
       </div>
       {error ? <p className="form-error">{error}</p> : null}
       <button type="submit" className="button button--primary" disabled={loading}>
-        {loading ? "Guardando…" : "Agregar gasto"}
+        {loading ? "Guardando…" : "Registrar pago"}
       </button>
     </form>
   );

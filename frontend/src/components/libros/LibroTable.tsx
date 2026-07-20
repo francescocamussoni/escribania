@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
-import type { LibroResponse } from "@/types/api";
+import type { LibroSalidaResponse } from "@/types/api";
 import { formatDateOnly, formatMoney } from "@/utils/format";
 
 export interface LibroTableProps {
-  data: LibroResponse | undefined;
+  data: LibroSalidaResponse | undefined;
   isLoading: boolean;
   error: boolean;
   emptyMessage: string;
@@ -28,19 +28,19 @@ export function LibroTable({ data, isLoading, error, emptyMessage }: LibroTableP
         <span>Concepto</span>
         <span>Monto</span>
         <span>Escritura</span>
-        <span>Fecha</span>
+        <span>Fecha de pago</span>
       </div>
       {data.lineas.map((linea, index) => (
         <div
           key={`${linea.escritura_id}-${linea.concepto}-${index}`}
           className="libro-table__grid libro-table__grid--row"
         >
-          <span>{linea.concepto}</span>
+          <span>{linea.concepto || "—"}</span>
           <span className="libro-table__amount">{formatMoney(linea.monto)}</span>
           <Link to={`/escrituras/${linea.escritura_id}`} className="text-link">
             {linea.escritura_nombre}
           </Link>
-          <span>{formatDateOnly(linea.fecha_escritura)}</span>
+          <span>{formatDateOnly(linea.fecha_pago)}</span>
         </div>
       ))}
       <div className="libro-table__footer">

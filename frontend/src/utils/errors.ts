@@ -1,4 +1,5 @@
 import { ApiRequestError } from "@/api/client";
+import { formatMoney } from "@/utils/format";
 
 const KNOWN_API_MESSAGES: Record<string, string> = {
   "An active escribano with this name already exists":
@@ -8,6 +9,8 @@ const KNOWN_API_MESSAGES: Record<string, string> = {
   "sueldo must be greater than 0": "El sueldo debe ser mayor a cero.",
   "Cannot modify a closed escritura": "No se puede modificar una escritura cerrada.",
   "Escritura is already closed": "La escritura ya está cerrada.",
+  "No se puede cerrar la escritura: saldo pendiente de cobro":
+    "No se puede cerrar la escritura: hay saldo pendiente de cobro.",
   "No se pudo consultar la cotización oficial":
     "No se pudo consultar la cotización oficial. Podés ingresar los valores manualmente.",
 };
@@ -20,6 +23,24 @@ function extractDetailMessage(detail: string | Record<string, unknown> | undefin
     return detail.detail;
   }
   return null;
+}
+
+function extractSaldoPendiente(detail: string | Record<string, unknown> | undefined): string | null {
+  if (detail && typeof detail === "object" && typeof detail.saldo_pendiente === "string") {
+    return detail.saldo_pendiente;
+  }
+  return null;
+}
+
+export function closeEscrituraSaldoMessage(error: unknown): string | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) {
+    return null;
+  }
+  const saldo = extractSaldoPendiente(error.body?.detail);
+  if (!saldo) {
+    return null;
+  }
+  return `No se puede cerrar la escritura. Saldo pendiente: ${formatMoney(saldo)}.`;
 }
 
 function translateApiMessage(message: string): string {

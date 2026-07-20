@@ -8,13 +8,7 @@ from httpx import AsyncClient
 
 from events.publisher import event_hub
 from helpers.escritura_factory import canonical_escritura_payload
-
-GASTO_PAYLOAD = {
-    "concepto": "Timbre extra",
-    "monto": "50000.00",
-    "direccion": "salida",
-    "fecha": "2026-07-18",
-}
+from tests.integration.test_escrituras_api import PAGO_FECHA, _create_escritura, _pay_full
 
 
 async def _wait_for_event(queue: asyncio.Queue[str], expected_type: str, timeout: float = 5.0) -> dict:
@@ -60,13 +54,9 @@ async def test_sse_escritura_closed(
     escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post(
-        "/api/v1/escrituras",
-        json=canonical_escritura_payload(escribano_ids),
-    )
-    assert created.status_code == 201
-    escritura_id = created.json()["id"]
-    cleanup_escrituras.append(escritura_id)
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    await _pay_full(auth_client, escritura_id, created["costo_total"])
 
     queue = event_hub.subscribe()
     try:
@@ -80,32 +70,53 @@ async def test_sse_escritura_closed(
 
 
 @pytest.mark.asyncio
-async def test_sse_gasto_created(
+async def test_sse_pago_cliente_created(
     auth_client: AsyncClient,
     seeded_config,
     escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post(
-        "/api/v1/escrituras",
-        json=canonical_escritura_payload(escribano_ids),
-    )
-    assert created.status_code == 201
-    escritura_id = created.json()["id"]
-    cleanup_escrituras.append(escritura_id)
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
 
     queue = event_hub.subscribe()
     try:
         response = await auth_client.post(
-            f"/api/v1/escrituras/{escritura_id}/gastos",
-            json=GASTO_PAYLOAD,
+            f"/api/v1/escrituras/{escritura_id}/pagos-cliente",
+            json={"monto": "50000.00", "fecha": PAGO_FECHA, "concepto": "Anticipo"},
         )
         assert response.status_code == 201
-        gasto_id = response.json()["id"]
+        pago_id = response.json()["id"]
 
-        data = await _wait_for_event(queue, "gasto.created")
+        data = await _wait_for_event(queue, "pago_cliente.created")
         assert data["escritura_id"] == escritura_id
-        assert data["gasto_id"] == gasto_id
+        assert data["pago_id"] == pago_id
+    finally:
+        event_hub.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
+async def test_sse_pago_colegio_created(
+    auth_client: AsyncClient,
+    seeded_config,
+    escribano_ids: dict[str, str],
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+
+    queue = event_hub.subscribe()
+    try:
+        response = await auth_client.post(
+            f"/api/v1/escrituras/{escritura_id}/pagos-colegio",
+            json={"monto": "75000.00", "fecha": PAGO_FECHA, "concepto": "Aporte"},
+        )
+        assert response.status_code == 201
+        pago_id = response.json()["id"]
+
+        data = await _wait_for_event(queue, "pago_colegio.created")
+        assert data["escritura_id"] == escritura_id
+        assert data["pago_id"] == pago_id
     finally:
         event_hub.unsubscribe(queue)
 

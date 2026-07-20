@@ -21,7 +21,7 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
         <div>
           <h3>{grupo.escribano_nombre}</h3>
           <p className="page-muted">
-            {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"}
+            {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"} con cobros
           </p>
         </div>
         <div className="escribano-card__total">{formatMoney(grupo.total)}</div>
@@ -33,15 +33,13 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
       {expanded ? (
         <div className="escribano-card__body">
           {grupo.escrituras.length === 0 ? (
-            <p className="page-muted">Sin escrituras en este período.</p>
+            <p className="page-muted">Sin cobros registrados en este período.</p>
           ) : (
             <div className="escribano-card__table">
               <div className="escribano-card__row escritano-card__row--header">
                 <span>Escritura</span>
                 <span>Estado</span>
-                <span>Honorario</span>
-                <span>Certificación</span>
-                <span>Subtotal</span>
+                <span>Monto cobrado</span>
               </div>
               {grupo.escrituras.map((item) => (
                 <div key={item.escritura_id} className="escribano-card__row">
@@ -51,9 +49,7 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
                   <span>
                     <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
                   </span>
-                  <span>{formatMoney(item.honorario_principal)}</span>
-                  <span>{formatMoney(item.certificacion)}</span>
-                  <span className="escribano-card__subtotal">{formatMoney(item.subtotal)}</span>
+                  <span className="escribano-card__subtotal">{formatMoney(item.monto_cobrado)}</span>
                 </div>
               ))}
             </div>

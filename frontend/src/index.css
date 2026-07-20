@@ -287,10 +287,74 @@ input {
   font-weight: 600;
 }
 
+.escritura-list--saldo .escritura-list__header,
+.escritura-list--saldo .escritura-list__row {
+  grid-template-columns: 1.4fr 1fr 0.75fr 1fr 1fr 1fr 0.85fr;
+}
+
+.escritura-list__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .escritura-list__amount,
 .gastos-list__amount {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.gastos-list__header.pagos-list__row--3col,
+.gastos-list__row.pagos-list__row--3col {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.saldo-resumen__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.saldo-resumen__grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.saldo-resumen__grid dt {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #5b6477;
+}
+
+.saldo-resumen__grid dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.saldo-resumen__pendiente {
+  color: #c62828;
+}
+
+.saldo-resumen__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.saldo-resumen__referencia {
+  margin-bottom: 1rem;
+}
+
+.escritura-detail__close {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
 }
 
 .badge {
@@ -573,7 +637,7 @@ input {
 .escribano-card__row,
 .pago-card__row {
   display: grid;
-  grid-template-columns: 2fr 0.9fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 0.9fr 1fr;
   gap: 0.75rem;
   align-items: center;
   padding: 0.5rem 0;
@@ -703,6 +767,26 @@ input {
 .libro-page {
   display: grid;
   gap: 1rem;
+}
+
+.libro-entrada {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.libro-section__title {
+  margin: 0;
+  padding: 1rem 1.25rem 0.5rem;
+  font-size: 1rem;
+}
+
+.libro-section__empty {
+  padding: 0 1.25rem 1rem;
+  margin: 0;
+}
+
+.libro-table__grid--deudas {
+  grid-template-columns: 2fr 1fr 1fr 1fr;
 }
 
 .libro-table {

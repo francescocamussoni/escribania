@@ -13,9 +13,10 @@ src/api/routes/empleados.py
 src/api/routes/escribanos.py
 src/api/routes/escrituras.py
 src/api/routes/events.py
-src/api/routes/gastos.py
 src/api/routes/libros.py
 src/api/routes/liquidacion.py
+src/api/routes/pagos_cliente.py
+src/api/routes/pagos_colegio.py
 src/api/routes/salarios.py
 src/escribania_backend.egg-info/PKG-INFO
 src/escribania_backend.egg-info/SOURCES.txt
@@ -33,9 +34,10 @@ src/models/empleado.py
 src/models/escribano.py
 src/models/escritura.py
 src/models/factura_principal.py
-src/models/gasto_adicional.py
 src/models/liquidacion.py
 src/models/mixins.py
+src/models/pago_cliente.py
+src/models/pago_colegio.py
 src/models/usuario.py
 src/schemas/__init__.py
 src/schemas/auth.py
@@ -46,9 +48,10 @@ src/schemas/empleado.py
 src/schemas/escribano.py
 src/schemas/escritura.py
 src/schemas/factura.py
-src/schemas/gasto.py
 src/schemas/libros.py
 src/schemas/liquidacion.py
+src/schemas/pago_cliente.py
+src/schemas/pago_colegio.py
 src/schemas/salarios.py
 src/services/__init__.py
 src/services/auth.py
@@ -62,4 +65,7 @@ src/services/escritura_errors.py
 src/services/escritura_service.py
 src/services/libros_service.py
 src/services/liquidacion_service.py
+src/services/pago_cliente_service.py
+src/services/pago_colegio_service.py
+src/services/pago_saldo.py
 src/services/salario_service.py

@@ -1,12 +1,14 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
 
-from helpers.escritura_factory import CANONICAL_SUBTOTAL, canonical_escritura_payload, insert_test_escritura
+from helpers.escritura_factory import canonical_escritura_payload, insert_test_escritura
 
 TEST_YEAR = 2026
 TEST_MONTH = 7
+PAGO_FECHA = "2026-07-20"
 
 
 def _dt(day: int) -> datetime:
@@ -34,6 +36,12 @@ async def test_get_libro_entrada_returns_200_with_filter(
     )
     cleanup_escrituras.append(escritura.id)
 
+    pago = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/pagos-cliente",
+        json={"monto": "100000.00", "fecha": PAGO_FECHA, "concepto": "Anticipo API"},
+    )
+    assert pago.status_code == 201
+
     response = await auth_client.get(
         "/api/v1/libros/entrada",
         params={"anio": TEST_YEAR, "mes": TEST_MONTH},
@@ -42,8 +50,12 @@ async def test_get_libro_entrada_returns_200_with_filter(
     body = response.json()
     assert body["anio"] == TEST_YEAR
     assert body["mes"] == TEST_MONTH
-    assert body["total"] == str(CANONICAL_SUBTOTAL)
+    assert body["total"] == "100000.00"
+    assert "resumen_deudas" in body
     assert any(linea["escritura_id"] == str(escritura.id) for linea in body["lineas"])
+    linea = next(item for item in body["lineas"] if item["escritura_id"] == str(escritura.id))
+    assert linea["fecha_pago"] == PAGO_FECHA
+    assert linea["concepto"] == "Anticipo API"
 
 
 @pytest.mark.asyncio
@@ -66,6 +78,7 @@ async def test_get_libro_entrada_defaults_to_current_month(
     body = response.json()
     assert body["anio"] == now.year
     assert body["mes"] == now.month
+    assert "resumen_deudas" in body
 
 
 @pytest.mark.asyncio
@@ -89,6 +102,12 @@ async def test_get_libro_salida_returns_200_with_structure(
     )
     cleanup_escrituras.append(escritura.id)
 
+    pago = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/pagos-colegio",
+        json={"monto": "25000.00", "fecha": PAGO_FECHA, "concepto": "Colegio API"},
+    )
+    assert pago.status_code == 201
+
     response = await auth_client.get(
         "/api/v1/libros/salida",
         params={"anio": TEST_YEAR, "mes": TEST_MONTH},
@@ -97,14 +116,16 @@ async def test_get_libro_salida_returns_200_with_structure(
     body = response.json()
     assert body["anio"] == TEST_YEAR
     assert body["mes"] == TEST_MONTH
+    assert body["total"] == "25000.00"
     assert body["lineas"]
     linea = body["lineas"][0]
-    assert {"escritura_id", "escritura_nombre", "concepto", "monto", "fecha_escritura"} <= linea.keys()
+    assert {"escritura_id", "escritura_nombre", "concepto", "monto", "fecha_pago"} <= linea.keys()
+    assert linea["fecha_pago"] == PAGO_FECHA
     assert any(item["escritura_id"] == str(escritura.id) for item in body["lineas"])
 
 
 @pytest.mark.asyncio
-async def test_libro_entrada_updates_after_escritura_create_via_api(
+async def test_libro_entrada_updates_after_pago_cliente_via_api(
     auth_client: AsyncClient,
     seeded_config,
     escribano_ids: dict[str, str],
@@ -115,7 +136,7 @@ async def test_libro_entrada_updates_after_escritura_create_via_api(
         params={"anio": TEST_YEAR, "mes": TEST_MONTH},
     )
     assert before.status_code == 200
-    count_before = len(before.json()["lineas"])
+    total_before = before.json()["total"]
 
     created = await auth_client.post(
         "/api/v1/escrituras",
@@ -126,11 +147,18 @@ async def test_libro_entrada_updates_after_escritura_create_via_api(
         ),
     )
     assert created.status_code == 201
-    cleanup_escrituras.append(created.json()["id"])
+    escritura_id = created.json()["id"]
+    cleanup_escrituras.append(escritura_id)
+
+    pago = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/pagos-cliente",
+        json={"monto": "50000.00", "fecha": PAGO_FECHA},
+    )
+    assert pago.status_code == 201
 
     after = await auth_client.get(
         "/api/v1/libros/entrada",
         params={"anio": TEST_YEAR, "mes": TEST_MONTH},
     )
     assert after.status_code == 200
-    assert len(after.json()["lineas"]) > count_before
+    assert Decimal(after.json()["total"]) == Decimal(total_before) + Decimal("50000.00")

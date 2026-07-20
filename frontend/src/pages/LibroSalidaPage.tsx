@@ -22,9 +22,7 @@ export function LibroSalidaPage() {
       <header className="page-header page-header--stacked">
         <div>
           <h1>Libro de Salida</h1>
-          <p className="page-muted">
-            Flujos de salida del mes: impuestos, sellos, aportes notariales y gastos administrativos.
-          </p>
+          <p className="page-muted">Pagos al Colegio de Escribanos registrados en el mes.</p>
         </div>
         <div className="period-selector">
           <label className="field">

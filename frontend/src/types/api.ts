@@ -9,6 +9,8 @@ export type SseEventType =
   | "escritura.updated"
   | "escritura.closed"
   | "gasto.created"
+  | "pago_cliente.created"
+  | "pago_colegio.created"
   | "liquidacion.updated"
   | "libros_updated";
 
@@ -78,6 +80,7 @@ export interface FacturaPrincipalResponse {
   updated_at: string;
 }
 
+/** @deprecated Replaced by PagoCliente / PagoColegio in feature 003 */
 export interface GastoAdicionalResponse {
   id: string;
   escritura_id: string;
@@ -88,11 +91,42 @@ export interface GastoAdicionalResponse {
   created_at: string;
 }
 
+/** @deprecated Replaced by PagoClienteInput */
 export interface GastoAdicionalInput {
   concepto: string;
   monto: string;
   direccion: DireccionGasto;
   fecha: string;
+}
+
+export interface PagoClienteInput {
+  monto: string;
+  fecha: string;
+  concepto?: string;
+}
+
+export interface PagoClienteResponse {
+  id: string;
+  escritura_id: string;
+  monto: string;
+  fecha: string;
+  concepto: string;
+  created_at: string;
+}
+
+export interface PagoColegioInput {
+  monto: string;
+  fecha: string;
+  concepto?: string;
+}
+
+export interface PagoColegioResponse {
+  id: string;
+  escritura_id: string;
+  monto: string;
+  fecha: string;
+  concepto: string;
+  created_at: string;
 }
 
 export interface EscrituraResponse {
@@ -109,7 +143,14 @@ export interface EscrituraResponse {
   closed_at: string | null;
   updated_at: string;
   factura: FacturaPrincipalResponse;
-  gastos_adicionales: GastoAdicionalResponse[];
+  costo_total: string;
+  total_pagado: string;
+  saldo_pendiente: string;
+  pagada_al_100: boolean;
+  sobrepago: boolean;
+  total_leyes_notariales_proyectadas: string;
+  pagos_cliente: PagoClienteResponse[];
+  pagos_colegio: PagoColegioResponse[];
 }
 
 export interface EscrituraListItem {
@@ -120,16 +161,18 @@ export interface EscrituraListItem {
   escribano_nombre: string;
   usd_value: string;
   created_at: string;
-  total_factura: string;
+  costo_total: string;
+  total_pagado: string;
+  saldo_pendiente: string;
+  pagada_al_100: boolean;
+  sobrepago: boolean;
 }
 
 export interface LiquidacionEscrituraItem {
   escritura_id: string;
   nombre: string;
   estado: EstadoEscritura;
-  honorario_principal: string;
-  certificacion: string;
-  subtotal: string;
+  monto_cobrado: string;
 }
 
 export interface LiquidacionEscribano {
@@ -246,12 +289,27 @@ export interface LibroLineaResponse {
   escritura_nombre: string;
   concepto: string;
   monto: string;
-  fecha_escritura: string;
+  fecha_pago: string;
 }
 
-export interface LibroResponse {
+export interface DeudaResumenItem {
+  escritura_id: string;
+  escritura_nombre: string;
+  costo_total: string;
+  total_pagado: string;
+  saldo_pendiente: string;
+}
+
+export interface LibroSalidaResponse {
   anio: number;
   mes: number;
   lineas: LibroLineaResponse[];
   total: string;
 }
+
+export interface LibroEntradaResponse extends LibroSalidaResponse {
+  resumen_deudas: DeudaResumenItem[];
+}
+
+/** @deprecated Use LibroSalidaResponse or LibroEntradaResponse */
+export type LibroResponse = LibroSalidaResponse;

@@ -5,8 +5,6 @@ import type {
   EscrituraResponse,
   EscrituraUpdate,
   EstadoEscritura,
-  GastoAdicionalInput,
-  GastoAdicionalResponse,
 } from "@/types/api";
 
 export interface EscrituraListFilters {
@@ -61,14 +59,4 @@ export function updateEscritura(id: string, payload: EscrituraUpdate): Promise<E
 
 export function closeEscritura(id: string): Promise<EscrituraResponse> {
   return apiFetch(`/escrituras/${id}/close`, { method: "POST" });
-}
-
-export function addGasto(
-  escrituraId: string,
-  payload: GastoAdicionalInput,
-): Promise<GastoAdicionalResponse> {
-  return apiFetch(`/escrituras/${escrituraId}/gastos`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
 }

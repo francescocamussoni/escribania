@@ -4,17 +4,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from models.gasto_adicional import DireccionGasto
 from schemas.common import MoneyStr
 
 
-class GastoAdicionalInput(BaseModel):
+class PagoClienteInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    concepto: str = Field(min_length=1, max_length=500)
     monto: Decimal = Field(gt=0)
-    direccion: DireccionGasto
     fecha: date
+    concepto: str = Field(default="", max_length=500)
 
     @field_validator("monto", mode="before")
     @classmethod
@@ -26,13 +24,12 @@ class GastoAdicionalInput(BaseModel):
         raise TypeError("invalid decimal value")
 
 
-class GastoAdicionalResponse(BaseModel):
+class PagoClienteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     escritura_id: UUID
-    concepto: str
     monto: MoneyStr
-    direccion: DireccionGasto
     fecha: date
+    concepto: str
     created_at: datetime

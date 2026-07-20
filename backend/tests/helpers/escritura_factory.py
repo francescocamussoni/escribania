@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -11,6 +11,8 @@ from models.configuracion import ConfiguracionFinanciera
 from models.escribano import Escribano
 from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
+from models.pago_cliente import PagoCliente
+from models.pago_colegio import PagoColegio
 from services.calculo_factura import calcular_factura_completa
 from services.escritura_service import config_from_row
 
@@ -130,3 +132,45 @@ async def insert_test_escritura(
     await session.commit()
     await session.refresh(escritura)
     return escritura
+
+
+async def insert_test_pago_cliente(
+    session: AsyncSession,
+    escritura_id: uuid.UUID,
+    *,
+    monto: Decimal,
+    fecha: date,
+    concepto: str = "Pago test",
+) -> PagoCliente:
+    pago = PagoCliente(
+        id=uuid.uuid4(),
+        escritura_id=escritura_id,
+        monto=monto,
+        fecha=fecha,
+        concepto=concepto,
+    )
+    session.add(pago)
+    await session.commit()
+    await session.refresh(pago)
+    return pago
+
+
+async def insert_test_pago_colegio(
+    session: AsyncSession,
+    escritura_id: uuid.UUID,
+    *,
+    monto: Decimal,
+    fecha: date,
+    concepto: str = "Pago colegio test",
+) -> PagoColegio:
+    pago = PagoColegio(
+        id=uuid.uuid4(),
+        escritura_id=escritura_id,
+        monto=monto,
+        fecha=fecha,
+        concepto=concepto,
+    )
+    session.add(pago)
+    await session.commit()
+    await session.refresh(pago)
+    return pago

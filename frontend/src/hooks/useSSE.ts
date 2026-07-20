@@ -10,21 +10,34 @@ function invalidateForEvent(
   eventType: SseEventType,
   data: Record<string, string>,
 ): void {
-  if (eventType.startsWith("escritura.") || eventType === "gasto.created") {
+  const escrituraRelated =
+    eventType.startsWith("escritura.") ||
+    eventType === "gasto.created" ||
+    eventType === "pago_cliente.created" ||
+    eventType === "pago_colegio.created";
+
+  if (escrituraRelated) {
     void queryClient.invalidateQueries({ queryKey: ["escrituras"] });
     const escrituraId = data.escritura_id;
     if (escrituraId) {
       void queryClient.invalidateQueries({ queryKey: ["escritura", escrituraId] });
     }
   }
-  if (eventType === "liquidacion.updated" || eventType.startsWith("escritura.") || eventType === "gasto.created") {
+  if (
+    eventType === "liquidacion.updated" ||
+    eventType.startsWith("escritura.") ||
+    eventType === "gasto.created" ||
+    eventType === "pago_cliente.created"
+  ) {
     void queryClient.invalidateQueries({ queryKey: ["liquidacion"] });
     void queryClient.invalidateQueries({ queryKey: ["salarios"] });
   }
   if (
     eventType === "libros_updated" ||
     eventType.startsWith("escritura.") ||
-    eventType === "gasto.created"
+    eventType === "gasto.created" ||
+    eventType === "pago_cliente.created" ||
+    eventType === "pago_colegio.created"
   ) {
     void queryClient.invalidateQueries({ queryKey: ["libros"] });
   }
@@ -61,6 +74,8 @@ export function useSSE(enabled = true): void {
         "escritura.updated",
         "escritura.closed",
         "gasto.created",
+        "pago_cliente.created",
+        "pago_colegio.created",
         "liquidacion.updated",
         "libros_updated",
       ];

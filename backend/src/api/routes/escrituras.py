@@ -14,9 +14,15 @@ from schemas.escritura import (
     EscrituraUpdate,
 )
 from schemas.factura import FacturaPrincipalResponse
-from schemas.gasto import GastoAdicionalResponse
-from services.escritura_errors import EscrituraClosedError, EscrituraNotFoundError
+from schemas.pago_cliente import PagoClienteResponse
+from schemas.pago_colegio import PagoColegioResponse
+from services.escritura_errors import (
+    EscrituraClosedError,
+    EscrituraNotFoundError,
+    EscrituraSaldoPendienteError,
+)
 from services.escritura_service import (
+    build_saldo_fields,
     close_escritura,
     create_escritura,
     get_escritura,
@@ -28,6 +34,7 @@ router = APIRouter(prefix="/escrituras", tags=["escrituras"])
 
 
 def _to_response(escritura) -> EscrituraResponse:
+    saldo = build_saldo_fields(escritura)
     return EscrituraResponse(
         id=escritura.id,
         nombre=escritura.nombre,
@@ -42,9 +49,16 @@ def _to_response(escritura) -> EscrituraResponse:
         closed_at=escritura.closed_at,
         updated_at=escritura.updated_at,
         factura=FacturaPrincipalResponse.model_validate(escritura.factura),
-        gastos_adicionales=[
-            GastoAdicionalResponse.model_validate(gasto) for gasto in escritura.gastos
+        costo_total=saldo["costo_total"],
+        total_pagado=saldo["total_pagado"],
+        saldo_pendiente=saldo["saldo_pendiente"],
+        pagada_al_100=saldo["pagada_al_100"],
+        sobrepago=saldo["sobrepago"],
+        total_leyes_notariales_proyectadas=saldo["total_leyes_notariales_proyectadas"],
+        pagos_cliente=[
+            PagoClienteResponse.model_validate(pago) for pago in escritura.pagos_cliente
         ],
+        pagos_colegio=[PagoColegioResponse.model_validate(pago) for pago in escritura.pagos_colegio],
     )
 
 
@@ -57,26 +71,33 @@ async def list_escrituras_route(
     db: AsyncSession = Depends(get_db),
     _: Usuario = Depends(get_current_user),
 ) -> list[EscrituraListItem]:
-    rows = await list_escrituras(
+    escrituras = await list_escrituras(
         db,
         estado=estado,
         escribano_id=escribano_id,
         anio=anio,
         mes=mes,
     )
-    return [
-        EscrituraListItem(
-            id=escritura.id,
-            nombre=escritura.nombre,
-            estado=escritura.estado.value,
-            escribano_id=escritura.escribano_id,
-            escribano_nombre=escritura.escribano_nombre,
-            usd_value=escritura.usd_value,
-            created_at=escritura.created_at,
-            total_factura=total_factura,
+    items: list[EscrituraListItem] = []
+    for escritura in escrituras:
+        saldo = build_saldo_fields(escritura)
+        items.append(
+            EscrituraListItem(
+                id=escritura.id,
+                nombre=escritura.nombre,
+                estado=escritura.estado.value,
+                escribano_id=escritura.escribano_id,
+                escribano_nombre=escritura.escribano_nombre,
+                usd_value=escritura.usd_value,
+                created_at=escritura.created_at,
+                costo_total=saldo["costo_total"],
+                total_pagado=saldo["total_pagado"],
+                saldo_pendiente=saldo["saldo_pendiente"],
+                pagada_al_100=saldo["pagada_al_100"],
+                sobrepago=saldo["sobrepago"],
+            )
         )
-        for escritura, total_factura in rows
-    ]
+    return items
 
 
 @router.post("", response_model=EscrituraResponse, status_code=status.HTTP_201_CREATED)
@@ -135,4 +156,12 @@ async def close_escritura_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except EscrituraClosedError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except EscrituraSaldoPendienteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "detail": "No se puede cerrar la escritura: saldo pendiente de cobro",
+                "saldo_pendiente": format(exc.saldo_pendiente, "f"),
+            },
+        ) from exc
     return _to_response(escritura)

@@ -10,9 +10,7 @@ class LiquidacionEscrituraItem(BaseModel):
     escritura_id: str
     nombre: str
     estado: EstadoEscritura
-    honorario_principal: MoneyStr
-    certificacion: MoneyStr
-    subtotal: MoneyStr
+    monto_cobrado: MoneyStr
 
 
 class LiquidacionEscribano(BaseModel):

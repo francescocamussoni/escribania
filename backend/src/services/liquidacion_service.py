@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.escritura import Escritura
-from models.factura_principal import FacturaPrincipal
+from models.pago_cliente import PagoCliente
 from schemas.liquidacion import (
     LiquidacionEscrituraItem,
     LiquidacionEscribano,
@@ -16,7 +16,7 @@ from schemas.liquidacion import (
 )
 from services.escribano_service import list_active
 
-ZERO = Decimal("0.00")
+_ZERO = Decimal("0.00")
 _LEGACY_TOTAL_FIELDS = {
     "costanza": "total_costanza",
     "gabriel": "total_gabriel",
@@ -24,50 +24,83 @@ _LEGACY_TOTAL_FIELDS = {
 }
 
 
-def month_bounds(anio: int, mes: int) -> tuple[datetime, datetime]:
-    start = datetime(anio, mes, 1, tzinfo=UTC)
+def month_bounds(anio: int, mes: int) -> tuple[date, date]:
+    start = date(anio, mes, 1)
     if mes == 12:
-        end = datetime(anio + 1, 1, 1, tzinfo=UTC)
+        end = date(anio + 1, 1, 1)
     else:
-        end = datetime(anio, mes + 1, 1, tzinfo=UTC)
+        end = date(anio, mes + 1, 1)
     return start, end
-
-
-def _subtotal(factura: FacturaPrincipal) -> Decimal:
-    return factura.honorario_principal + factura.certificacion
-
-
-def _to_item(escritura: Escritura, factura: FacturaPrincipal) -> LiquidacionEscrituraItem:
-    subtotal = _subtotal(factura)
-    return LiquidacionEscrituraItem(
-        escritura_id=str(escritura.id),
-        nombre=escritura.nombre,
-        estado=escritura.estado,
-        honorario_principal=factura.honorario_principal,
-        certificacion=factura.certificacion,
-        subtotal=subtotal,
-    )
-
-
-async def fetch_escrituras_for_month(
-    session: AsyncSession,
-    anio: int,
-    mes: int,
-) -> list[tuple[Escritura, FacturaPrincipal]]:
-    start, end = month_bounds(anio, mes)
-    stmt = (
-        select(Escritura, FacturaPrincipal)
-        .join(FacturaPrincipal, FacturaPrincipal.escritura_id == Escritura.id)
-        .options(selectinload(Escritura.factura))
-        .where(Escritura.created_at >= start, Escritura.created_at < end)
-        .order_by(Escritura.created_at)
-    )
-    rows = (await session.execute(stmt)).all()
-    return [(row[0], row[1]) for row in rows]
 
 
 def _legacy_total_key(nombre: str) -> str | None:
     return _LEGACY_TOTAL_FIELDS.get(nombre.strip().lower())
+
+
+async def fetch_liquidacion_items_for_month(
+    session: AsyncSession,
+    anio: int,
+    mes: int,
+) -> list[LiquidacionEscrituraItem]:
+    grouped, _, _ = await _group_items_by_escribano(session, anio, mes)
+    items: list[LiquidacionEscrituraItem] = []
+    for escribano_items in grouped.values():
+        items.extend(escribano_items)
+    return sorted(items, key=lambda item: item.nombre.lower())
+
+
+async def _group_items_by_escribano(
+    session: AsyncSession,
+    anio: int,
+    mes: int,
+) -> tuple[dict[str, list[LiquidacionEscrituraItem]], dict[str, Decimal], dict[str, str]]:
+    start, end = month_bounds(anio, mes)
+    stmt = (
+        select(PagoCliente)
+        .join(Escritura)
+        .options(selectinload(PagoCliente.escritura))
+        .where(PagoCliente.fecha >= start, PagoCliente.fecha < end)
+        .order_by(PagoCliente.fecha, PagoCliente.created_at)
+    )
+    pagos = list((await session.execute(stmt)).scalars().all())
+
+    escritura_totals: dict[str, tuple[Escritura, Decimal]] = {}
+    for pago in pagos:
+        escritura = pago.escritura
+        key = str(escritura.id)
+        if key not in escritura_totals:
+            escritura_totals[key] = (escritura, _ZERO)
+        escritura, total = escritura_totals[key]
+        escritura_totals[key] = (escritura, total + pago.monto)
+
+    active_escribanos = await list_active(session)
+    grouped: dict[str, list[LiquidacionEscrituraItem]] = {
+        str(escribano.id): [] for escribano in active_escribanos
+    }
+    totals: dict[str, Decimal] = {str(escribano.id): _ZERO for escribano in active_escribanos}
+    escribano_names: dict[str, str] = {
+        str(escribano.id): escribano.nombre for escribano in active_escribanos
+    }
+
+    for escritura, monto in sorted(
+        escritura_totals.values(),
+        key=lambda pair: pair[0].nombre.lower(),
+    ):
+        item = LiquidacionEscrituraItem(
+            escritura_id=str(escritura.id),
+            nombre=escritura.nombre,
+            estado=escritura.estado,
+            monto_cobrado=monto.quantize(Decimal("0.01")),
+        )
+        key = str(escritura.escribano_id)
+        if key not in grouped:
+            grouped[key] = []
+            totals[key] = _ZERO
+            escribano_names[key] = escritura.escribano_nombre
+        grouped[key].append(item)
+        totals[key] += item.monto_cobrado
+
+    return grouped, totals, escribano_names
 
 
 async def get_liquidacion_mensual(
@@ -75,26 +108,7 @@ async def get_liquidacion_mensual(
     anio: int,
     mes: int,
 ) -> LiquidacionResumen:
-    rows = await fetch_escrituras_for_month(session, anio, mes)
-    active_escribanos = await list_active(session)
-
-    grouped: dict[str, list[LiquidacionEscrituraItem]] = {
-        str(escribano.id): [] for escribano in active_escribanos
-    }
-    totals: dict[str, Decimal] = {str(escribano.id): ZERO for escribano in active_escribanos}
-    escribano_names: dict[str, str] = {
-        str(escribano.id): escribano.nombre for escribano in active_escribanos
-    }
-
-    for escritura, factura in rows:
-        key = str(escritura.escribano_id)
-        item = _to_item(escritura, factura)
-        if key not in grouped:
-            grouped[key] = []
-            totals[key] = ZERO
-            escribano_names[key] = escritura.escribano_nombre
-        grouped[key].append(item)
-        totals[key] += item.subtotal
+    grouped, totals, escribano_names = await _group_items_by_escribano(session, anio, mes)
 
     por_escribano = [
         LiquidacionEscribano(
@@ -109,13 +123,13 @@ async def get_liquidacion_mensual(
         )
     ]
 
-    legacy_totals = {field: ZERO for field in _LEGACY_TOTAL_FIELDS.values()}
+    legacy_totals = {field: _ZERO for field in _LEGACY_TOTAL_FIELDS.values()}
     for escribano_id, total in totals.items():
         legacy_key = _legacy_total_key(escribano_names[escribano_id])
         if legacy_key is not None:
             legacy_totals[legacy_key] += total
 
-    total_global = sum(totals.values(), ZERO)
+    total_global = sum(totals.values(), _ZERO)
 
     return LiquidacionResumen(
         anio=anio,

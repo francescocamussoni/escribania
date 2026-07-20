@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 
-from api.routes import auth, configuracion, cotizacion, empleados, escribanos, escrituras, events, gastos, libros, liquidacion, salarios
+from api.routes import auth, configuracion, cotizacion, empleados, escribanos, escrituras, events, libros, liquidacion, pagos_cliente, pagos_colegio, salarios
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(escrituras.router)
-api_router.include_router(gastos.router)
+api_router.include_router(pagos_cliente.router)
+api_router.include_router(pagos_colegio.router)
 api_router.include_router(events.router)
 api_router.include_router(liquidacion.router)
 api_router.include_router(salarios.router)

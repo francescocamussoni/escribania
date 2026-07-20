@@ -23,7 +23,7 @@ export function LiquidacionPage() {
       <header className="page-header page-header--stacked">
         <div>
           <h1>Liquidación</h1>
-          <p className="page-muted">Resumen mensual por escribano (honorario + certificación).</p>
+          <p className="page-muted">Cobros reales del mes por escribano (pagos del cliente).</p>
         </div>
         <div className="period-selector">
           <label className="field">
@@ -66,7 +66,7 @@ export function LiquidacionPage() {
       ) : null}
 
       {!isLoading && !error && data?.por_escribano.every((g) => g.escrituras.length === 0) ? (
-        <p className="page-muted">No hay escrituras registradas para este período.</p>
+        <p className="page-muted">No hay cobros de clientes registrados para este período.</p>
       ) : null}
     </div>
   );

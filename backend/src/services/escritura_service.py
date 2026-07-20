@@ -13,12 +13,15 @@ from models.escritura import Escritura, EstadoEscritura
 from services.escribano_errors import EscribanoNotFoundError
 from services.escribano_service import get_active_by_id
 from models.factura_principal import FacturaPrincipal
-from models.gasto_adicional import GastoAdicional
 from schemas.escritura import EscrituraInput, EscrituraUpdate
-from schemas.gasto import GastoAdicionalInput
 from events.publisher import publish
 from services.calculo_factura import ConfigCalculo, calcular_factura_completa
-from services.escritura_errors import EscrituraClosedError, EscrituraNotFoundError
+from services.escritura_errors import (
+    EscrituraClosedError,
+    EscrituraNotFoundError,
+    EscrituraSaldoPendienteError,
+)
+from services.pago_saldo import calc_saldo, can_close, is_sobrepago
 
 FACTURA_CALC_FIELDS = (
     "monto_base_mep",
@@ -56,6 +59,8 @@ FACTURA_CALC_FIELDS = (
     "total_gastos_admin",
     "total_factura",
 )
+
+_ZERO = Decimal("0.00")
 
 
 def config_from_row(row: ConfiguracionFinanciera) -> ConfigCalculo:
@@ -120,15 +125,45 @@ def _ensure_open(escritura: Escritura) -> None:
         raise EscrituraClosedError("Cannot modify a closed escritura")
 
 
+def _escritura_load_options():
+    return (
+        selectinload(Escritura.factura),
+        selectinload(Escritura.pagos_cliente),
+        selectinload(Escritura.pagos_colegio),
+    )
+
+
 async def _get_escritura_or_404(session: AsyncSession, escritura_id: uuid.UUID) -> Escritura:
     escritura = await session.scalar(
         select(Escritura)
-        .options(selectinload(Escritura.factura), selectinload(Escritura.gastos))
+        .options(*_escritura_load_options())
         .where(Escritura.id == escritura_id)
     )
     if escritura is None:
         raise EscrituraNotFoundError("Escritura not found")
     return escritura
+
+
+def total_pagado_from_escritura(escritura: Escritura) -> Decimal:
+    total = sum((pago.monto for pago in escritura.pagos_cliente), _ZERO)
+    return total.quantize(Decimal("0.01"))
+
+
+def build_saldo_fields(escritura: Escritura) -> dict[str, Decimal | bool]:
+    if escritura.factura is None:
+        raise RuntimeError("Escritura has no factura principal")
+
+    costo_total = escritura.factura.total_factura
+    total_pagado = total_pagado_from_escritura(escritura)
+    saldo_pendiente = calc_saldo(costo_total, total_pagado)
+    return {
+        "costo_total": costo_total,
+        "total_pagado": total_pagado,
+        "saldo_pendiente": saldo_pendiente,
+        "pagada_al_100": can_close(saldo_pendiente),
+        "sobrepago": is_sobrepago(costo_total, total_pagado),
+        "total_leyes_notariales_proyectadas": escritura.factura.total_leyes_notariales,
+    }
 
 
 async def _resolve_escribano(session: AsyncSession, escribano_id: uuid.UUID):
@@ -184,9 +219,10 @@ async def list_escrituras(
     escribano_id: uuid.UUID | None = None,
     anio: int | None = None,
     mes: int | None = None,
-) -> list[tuple[Escritura, Decimal]]:
+) -> list[Escritura]:
     stmt = (
-        select(Escritura, FacturaPrincipal.total_factura)
+        select(Escritura)
+        .options(*_escritura_load_options())
         .join(FacturaPrincipal, FacturaPrincipal.escritura_id == Escritura.id)
         .order_by(Escritura.created_at.desc())
     )
@@ -199,8 +235,7 @@ async def list_escrituras(
     if mes is not None:
         stmt = stmt.where(extract("month", Escritura.created_at) == mes)
 
-    rows = (await session.execute(stmt)).all()
-    return [(row[0], row[1]) for row in rows]
+    return list((await session.scalars(stmt)).all())
 
 
 async def update_escritura(
@@ -249,6 +284,12 @@ async def close_escritura(session: AsyncSession, escritura_id: uuid.UUID) -> Esc
     if escritura.estado == EstadoEscritura.CERRADA:
         raise EscrituraClosedError("Escritura is already closed")
 
+    saldo = build_saldo_fields(escritura)
+    saldo_pendiente = saldo["saldo_pendiente"]
+    assert isinstance(saldo_pendiente, Decimal)
+    if not can_close(saldo_pendiente):
+        raise EscrituraSaldoPendienteError(saldo_pendiente)
+
     escritura.estado = EstadoEscritura.CERRADA
     escritura.closed_at = datetime.now(UTC)
     await session.commit()
@@ -258,33 +299,3 @@ async def close_escritura(session: AsyncSession, escritura_id: uuid.UUID) -> Esc
     await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return await _get_escritura_or_404(session, escritura_id)
-
-
-async def add_gasto_adicional(
-    session: AsyncSession,
-    escritura_id: uuid.UUID,
-    payload: GastoAdicionalInput,
-) -> GastoAdicional:
-    escritura = await _get_escritura_or_404(session, escritura_id)
-    _ensure_open(escritura)
-
-    gasto = GastoAdicional(
-        id=uuid.uuid4(),
-        escritura_id=escritura_id,
-        concepto=payload.concepto,
-        monto=payload.monto,
-        direccion=payload.direccion,
-        fecha=payload.fecha,
-    )
-    session.add(gasto)
-    await session.commit()
-    await session.refresh(gasto)
-
-    await publish(
-        "gasto.created",
-        {"escritura_id": str(escritura_id), "gasto_id": str(gasto.id)},
-    )
-    await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
-    await publish("libros_updated", {"escritura_id": str(escritura_id)})
-
-    return gasto
