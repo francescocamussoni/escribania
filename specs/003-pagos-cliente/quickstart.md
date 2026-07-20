@@ -48,16 +48,16 @@ OK
 
 ## Demo data (local / Docker Compose)
 
-With `SEED_DEMO_DATA=true` and `ENVIRONMENT=local`, the backend seeds **12 demo escrituras**
-(4 scenarios × Costanza, Gabriel, Victoria) on first startup. Idempotent: restarts skip if
-`[DEMO]` escrituras already exist.
+With `SEED_DEMO_DATA=true` and `ENVIRONMENT=local`, the backend seeds **42 demo escrituras**
+for calendar year **2026** (3 escribanos). Idempotent: restarts skip if the full set exists;
+an older partial seed is wiped and recreated.
 
-| Escenario | Descripción |
-|-----------|-------------|
-| C1 | Creada y cerrada en **junio 2026**, pagada en junio |
-| C2 | **Abierta**, creada en junio, pagos junio+julio parciales + pago colegio |
-| C3 | **Cerrada**, creada en junio, pagos junio+julio, saldada en julio |
-| C4 | Creada y cerrada en **julio 2026**, pagada en julio |
+| Período | Contenido |
+|---------|-----------|
+| Ene–May, Ago–Dic | 1 escritura **cerrada**/mes/escribano (30), nombres de clientes ficticios |
+| Jun–Jul | 4 escenarios/escribano (12): cerradas, abiertas con deuda, pagos cruzados |
+
+Nombres de ejemplo: `Compraventa García / Rodríguez — Av. Caseros 1450` (prefijo `[DEMO]` en DB).
 
 Manual seed (local, DB running):
 
@@ -65,7 +65,7 @@ Manual seed (local, DB running):
 cd backend && SEED_DEMO_DATA=true make demo-data
 ```
 
-Reset demo: `make db-down && make db-up` then `docker compose up`.
+Reset demo: `make db-down && docker compose up --build` (migrations, setup y demo seed corren solos al levantar el backend).
 
 ---
 

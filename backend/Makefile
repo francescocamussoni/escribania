@@ -44,3 +44,4 @@ frontend-dev:
 
 setup: migrate seed user
 	@echo "Listo. Ejecutá 'make run' y probá http://localhost:8000/docs"
+	@echo "O usá 'docker compose up --build' para stack completo (mismo setup automático)."

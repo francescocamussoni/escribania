@@ -30,11 +30,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: >
-      sh -c "alembic upgrade head &&
-             python scripts/seed_config.py &&
-             python scripts/seed_demo_data.py &&
-             uvicorn main:app --host 0.0.0.0 --port 8000"
+    command: ["sh", "scripts/docker_start.sh"]
 
   frontend:
     image: node:20-alpine

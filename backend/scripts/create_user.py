@@ -20,7 +20,8 @@ async def create_user(username: str, password: str, nombre_display: str | None) 
     async with AsyncSessionLocal() as session:
         existing = await session.scalar(select(Usuario).where(Usuario.username == username))
         if existing:
-            raise SystemExit(f"User '{username}' already exists.")
+            print(f"User '{username}' already exists — skipping.")
+            return
 
         user = Usuario(
             id=uuid.uuid4(),

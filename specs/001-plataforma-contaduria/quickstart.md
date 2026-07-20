@@ -78,32 +78,16 @@ docker compose up --build
 
 This starts:
 - `db` — PostgreSQL 16 on port 5432
-- `backend` — FastAPI on port 8000 (auto-reloads on code changes)
+- `backend` — FastAPI on port 8000; on startup runs the same steps as `make setup`
+  (migrations, config seed, admin user) plus demo escrituras when `SEED_DEMO_DATA=true`
 - `frontend` — Vite dev server on port 5173 (hot-reload)
 
-### 3. Run database migrations
+Default credentials (created automatically): `admin` / `tu-password`
 
-```bash
-docker compose exec backend alembic upgrade head
-```
+Override via environment variables on the `backend` service if needed:
+`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_DISPLAY_NAME`.
 
-### 4. Seed initial configuration
-
-```bash
-docker compose exec backend python scripts/seed_config.py
-```
-
-This creates the first `ConfiguracionFinanciera` row with all default values
-from the canonical example in `constitution.md` (USD 105,000 fixture).
-
-### 5. Create first user
-
-```bash
-docker compose exec backend python scripts/create_user.py \
-  --username admin --password <password>
-```
-
-### 6. Access the platform
+### 3. Access the platform
 
 | Service | URL |
 |---|---|
@@ -111,7 +95,7 @@ docker compose exec backend python scripts/create_user.py \
 | Backend API docs | http://localhost:8000/api/v1/docs |
 | Backend health | http://localhost:8000/api/v1/health |
 
-### 7. Validate canonical calculation
+### 4. Validate canonical calculation
 
 ```bash
 docker compose exec backend python -m pytest tests/unit/test_calculo_factura.py -v
