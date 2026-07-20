@@ -6,7 +6,7 @@ export function LibroSalidaTable(props: LibroSalidaTableProps) {
   return (
     <LibroTable
       {...props}
-      emptyMessage="No hay pagos al Colegio registrados en este período."
+      emptyMessage="No hay pagos de la escribanía registrados en este período."
     />
   );
 }

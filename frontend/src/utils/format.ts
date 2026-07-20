@@ -12,6 +12,16 @@ export function formatMoney(value: string): string {
   }).format(amount);
 }
 
+/** Integer percent of costo_total collected; null when costo_total is zero or invalid. */
+export function formatCobroPercent(totalPagado: string, costoTotal: string): number | null {
+  const pagado = Number(totalPagado);
+  const costo = Number(costoTotal);
+  if (Number.isNaN(pagado) || Number.isNaN(costo) || costo <= 0) {
+    return null;
+  }
+  return Math.round((pagado / costo) * 100);
+}
+
 export function formatDate(value: string): string {
   return new Intl.DateTimeFormat("es-AR", {
     dateStyle: "medium",

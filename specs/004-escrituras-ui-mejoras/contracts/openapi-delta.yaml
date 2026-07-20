@@ -1,0 +1,123 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Delta (feature 004-escrituras-ui-mejoras)
+  description: |
+    Feature 004 is frontend-only. No new or modified API endpoints.
+    This document records the existing contract surface consumed by the feature
+    for traceability during implementation and testing.
+  version: 0.4.0
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    EstadoEscritura:
+      type: string
+      enum: [abierta, cerrada]
+
+    EscrituraListItem:
+      type: object
+      description: Unchanged from feature 001/003 — all fields used by list UI
+      required:
+        - id
+        - nombre
+        - estado
+        - escribano_id
+        - escribano_nombre
+        - created_at
+        - costo_total
+        - total_pagado
+        - saldo_pendiente
+        - pagada_al_100
+        - sobrepago
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        estado:
+          $ref: '#/components/schemas/EstadoEscritura'
+        escribano_id:
+          type: string
+          format: uuid
+        escribano_nombre:
+          type: string
+        usd_value:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        costo_total:
+          type: string
+        total_pagado:
+          type: string
+        saldo_pendiente:
+          type: string
+        pagada_al_100:
+          type: boolean
+        sobrepago:
+          type: boolean
+
+paths:
+  /escrituras:
+    get:
+      summary: List escrituras (existing — used with escribano/estado filters)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            $ref: '#/components/schemas/EstadoEscritura'
+          description: Filter by open/closed — second pill row in UI
+        - name: escribano_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by escribano — first pill row in UI
+        - name: anio
+          in: query
+          schema:
+            type: integer
+          description: Not used by feature 004 list UI
+        - name: mes
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: Not used by feature 004 list UI
+      responses:
+        '200':
+          description: List of escrituras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EscrituraListItem'
+
+  /escribanos:
+    get:
+      summary: List escribanos (existing — populates escribano filter pills)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Feature 004 uses true to include inactive escribanos with escrituras
+      responses:
+        '200':
+          description: Escribano list for filter pill labels

@@ -108,7 +108,7 @@ export function FacturaDetalle({ factura }: FacturaDetalleProps) {
   const sections = buildSections(factura);
 
   return (
-    <div className="factura-detalle">
+    <div className="factura-detalle factura-detalle--two-col">
       {sections.map((section) => (
         <FacturaSection key={section.title} section={section} />
       ))}

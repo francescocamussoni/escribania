@@ -31,7 +31,7 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
       setMonto("");
       setFecha(todayIsoDate());
     } catch (err) {
-      setError(friendlyApiError(err, "No se pudo registrar el pago al Colegio."));
+      setError(friendlyApiError(err, "No se pudo registrar el pago de la escribanía."));
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,7 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
 
   return (
     <form className="gasto-form" onSubmit={handleSubmit}>
-      <h3 className="gasto-form__title">Registrar pago al Colegio</h3>
+      <h3 className="gasto-form__title">Registrar pago de la escribanía</h3>
       <div className="gasto-form__grid">
         <label className="field">
           <span>Concepto</span>

@@ -7,7 +7,7 @@ interface PagoColegioListProps {
 
 export function PagoColegioList({ pagos }: PagoColegioListProps) {
   if (pagos.length === 0) {
-    return <p className="page-muted">Sin pagos al Colegio registrados.</p>;
+    return <p className="page-muted">Sin pagos de la escribanía registrados.</p>;
   }
 
   return (

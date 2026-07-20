@@ -32,7 +32,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Contaduría Escribanía</h1>
+        <h1>Escribanía Barat</h1>
         <p className="login-card__subtitle">Ingresá con tu usuario de la escribanía</p>
 
         <label className="field">

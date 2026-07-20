@@ -11,7 +11,7 @@ import { useCreatePagoCliente } from "@/hooks/usePagosCliente";
 import { useCreatePagoColegio } from "@/hooks/usePagosColegio";
 import { useEscribanos } from "@/hooks/useEscribanos";
 import { closeEscrituraSaldoMessage, friendlyApiError } from "@/utils/errors";
-import { formatDate, formatMoney, displayEscribanoNombre, labelEstado } from "@/utils/format";
+import { formatDate, formatMoney, formatCobroPercent, displayEscribanoNombre, labelEstado } from "@/utils/format";
 
 function hasSaldoPendiente(saldo: string): boolean {
   const value = Number(saldo);
@@ -46,6 +46,7 @@ export function EscrituraDetail() {
 
   const isClosed = escritura.estado === "cerrada";
   const saldoPendiente = hasSaldoPendiente(escritura.saldo_pendiente);
+  const cobroPercent = formatCobroPercent(escritura.total_pagado, escritura.costo_total);
   const closeDisabled = closeMutation.isPending || saldoPendiente;
   const closeTooltip = saldoPendiente
     ? `Saldo pendiente de cobro: ${formatMoney(escritura.saldo_pendiente)}`
@@ -124,8 +125,16 @@ export function EscrituraDetail() {
           </div>
         </dl>
         <div className="saldo-resumen__badges">
-          {escritura.pagada_al_100 ? (
-            <span className="badge badge--abierta">Pagada al 100%</span>
+          {cobroPercent !== null ? (
+            <span
+              className={`badge ${
+                escritura.pagada_al_100 || cobroPercent >= 100 ? "badge--abierta" : "badge--cerrada"
+              }`}
+            >
+              {escritura.pagada_al_100 || cobroPercent >= 100
+                ? "Pagada al 100%"
+                : `Cobrado al ${cobroPercent}%`}
+            </span>
           ) : null}
           {escritura.sobrepago ? <span className="badge badge--muted">Sobrepago</span> : null}
         </div>
@@ -143,39 +152,43 @@ export function EscrituraDetail() {
         />
       </section>
 
-      <section className="detail-card">
-        <h2>Factura principal</h2>
-        <FacturaDetalle factura={escritura.factura} />
-      </section>
+      <div className="escritura-detail__grid">
+        <section className="detail-card escritura-detail__factura">
+          <h2>Factura principal</h2>
+          <FacturaDetalle factura={escritura.factura} />
+        </section>
 
-      <section className="detail-card">
-        <h2>Pagos del cliente</h2>
-        <PagoClienteList pagos={escritura.pagos_cliente} />
-        {!isClosed ? (
-          <PagoClienteForm
-            saldoPendiente={escritura.saldo_pendiente}
-            onSubmit={async (payload) => {
-              await pagoClienteMutation.mutateAsync(payload);
-            }}
-          />
-        ) : null}
-      </section>
+        <div className="escritura-detail__pagos-col">
+          <section className="detail-card">
+            <h2>Pagos del cliente</h2>
+            <PagoClienteList pagos={escritura.pagos_cliente} />
+            {!isClosed ? (
+              <PagoClienteForm
+                saldoPendiente={escritura.saldo_pendiente}
+                onSubmit={async (payload) => {
+                  await pagoClienteMutation.mutateAsync(payload);
+                }}
+              />
+            ) : null}
+          </section>
 
-      <section className="detail-card">
-        <h2>Pagos al Colegio</h2>
-        <p className="page-muted saldo-resumen__referencia">
-          Leyes notariales proyectadas (referencia):{" "}
-          <strong>{formatMoney(escritura.total_leyes_notariales_proyectadas)}</strong>
-        </p>
-        <PagoColegioList pagos={escritura.pagos_colegio} />
-        {!isClosed ? (
-          <PagoColegioForm
-            onSubmit={async (payload) => {
-              await pagoColegioMutation.mutateAsync(payload);
-            }}
-          />
-        ) : null}
-      </section>
+          <section className="detail-card">
+            <h2>Pagos de la escribanía</h2>
+            <p className="page-muted saldo-resumen__referencia">
+              Leyes notariales proyectadas (referencia):{" "}
+              <strong>{formatMoney(escritura.total_leyes_notariales_proyectadas)}</strong>
+            </p>
+            <PagoColegioList pagos={escritura.pagos_colegio} />
+            {!isClosed ? (
+              <PagoColegioForm
+                onSubmit={async (payload) => {
+                  await pagoColegioMutation.mutateAsync(payload);
+                }}
+              />
+            ) : null}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

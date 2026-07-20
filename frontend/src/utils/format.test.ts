@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatDateOnly } from "@/utils/format";
+import { formatCobroPercent, formatDateOnly } from "@/utils/format";
+
+describe("formatCobroPercent", () => {
+  it("returns rounded percent of total paid over cost", () => {
+    expect(formatCobroPercent("500000", "1000000")).toBe(50);
+    expect(formatCobroPercent("1000000", "1000000")).toBe(100);
+    expect(formatCobroPercent("0", "1000000")).toBe(0);
+  });
+
+  it("returns null when costo total is zero or invalid", () => {
+    expect(formatCobroPercent("100", "0")).toBeNull();
+    expect(formatCobroPercent("x", "100")).toBeNull();
+  });
+});
 
 describe("formatDateOnly", () => {
   it("formats ISO date strings for display", () => {

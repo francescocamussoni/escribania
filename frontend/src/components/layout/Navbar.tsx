@@ -30,7 +30,7 @@ export function Navbar({ username }: NavbarProps) {
 
   return (
     <header className="navbar">
-      <div className="navbar__brand">Contaduría Escribanía</div>
+      <div className="navbar__brand">Escribanía Barat</div>
       <nav className="navbar__links" aria-label="Secciones principales">
         {links.map((link) => (
           <NavLink
