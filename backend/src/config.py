@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     cotizacion_fallback_url: str = "https://dolarapi.com/v1/dolares"
     cotizacion_cache_ttl_hours: int = 8
     cotizacion_ssl_verify: bool = True
+    seed_demo_data: bool = False
 
     @property
     def database_url(self) -> str:
