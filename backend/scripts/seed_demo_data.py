@@ -35,6 +35,7 @@ from services.escritura_service import close_escritura, config_from_row, get_act
 from services.pago_cliente_service import create_pago
 from services.pago_colegio_service import create_pago as create_pago_colegio
 
+DEMO_PREFIX = "[DEMO]"
 DEMO_YEAR = 2026
 DEMO_SEED_VERSION = 2
 SCENARIOS_PER_ESCRIBANO = 4
@@ -153,7 +154,7 @@ def _pct(total: Decimal, percent: Decimal) -> Decimal:
 
 
 def _demo_nombre(client_label: str) -> str:
-    return f"{client_label}"
+    return f"{DEMO_PREFIX} {client_label}"
 
 
 def _dt(month: int, day: int, hour: int = 10) -> datetime:
