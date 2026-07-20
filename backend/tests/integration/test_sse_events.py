@@ -7,14 +7,7 @@ import pytest
 from httpx import AsyncClient
 
 from events.publisher import event_hub
-
-CANONICAL_PAYLOAD = {
-    "nombre": "Compraventa Calle Falsa 123",
-    "escribano": "costanza",
-    "usd_value": "105000.00",
-    "dolar_mep": "1450.34",
-    "dolar_nacion": "1425.00",
-}
+from helpers.escritura_factory import canonical_escritura_payload
 
 GASTO_PAYLOAD = {
     "concepto": "Timbre extra",
@@ -41,11 +34,15 @@ async def _wait_for_event(queue: asyncio.Queue[str], expected_type: str, timeout
 async def test_sse_escritura_created(
     auth_client: AsyncClient,
     seeded_config,
+    escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
     queue = event_hub.subscribe()
     try:
-        response = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+        response = await auth_client.post(
+            "/api/v1/escrituras",
+            json=canonical_escritura_payload(escribano_ids),
+        )
         assert response.status_code == 201
         escritura_id = response.json()["id"]
         cleanup_escrituras.append(escritura_id)
@@ -60,9 +57,13 @@ async def test_sse_escritura_created(
 async def test_sse_escritura_closed(
     auth_client: AsyncClient,
     seeded_config,
+    escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=canonical_escritura_payload(escribano_ids),
+    )
     assert created.status_code == 201
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
@@ -82,9 +83,13 @@ async def test_sse_escritura_closed(
 async def test_sse_gasto_created(
     auth_client: AsyncClient,
     seeded_config,
+    escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=canonical_escritura_payload(escribano_ids),
+    )
     assert created.status_code == 201
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)

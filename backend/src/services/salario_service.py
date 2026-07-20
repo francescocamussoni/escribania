@@ -4,18 +4,12 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.escritura import Escribano
 from schemas.liquidacion import LiquidacionEscrituraItem
 from schemas.salarios import PagoEscribano, PagoSalariosResumen, PagoSecretaria
-from services.escritura_service import get_active_config
-from services.liquidacion_service import ALL_ESCRIBANOS, _to_item, fetch_escrituras_for_month
+from services.empleado_service import list_active as list_active_empleados
+from services.escribano_service import list_active as list_active_escribanos
+from services.liquidacion_service import _to_item, fetch_escrituras_for_month
 
-ESCRIBANO_LABELS: dict[Escribano, str] = {
-    Escribano.COSTANZA: "Costanza",
-    Escribano.GABRIEL: "Gabriel",
-    Escribano.VICTORIA: "Victoria",
-}
-SECRETARIAS = ("Graciela", "Guadalupe")
 ZERO = Decimal("0.00")
 
 
@@ -25,30 +19,38 @@ async def get_pagos_mensuales(
     mes: int,
 ) -> PagoSalariosResumen:
     rows = await fetch_escrituras_for_month(session, anio, mes)
-    config = await get_active_config(session)
+    active_escribanos = await list_active_escribanos(session)
+    active_empleados = await list_active_empleados(session)
 
-    grouped: dict[Escribano, list[LiquidacionEscrituraItem]] = {e: [] for e in ALL_ESCRIBANOS}
-    totals: dict[Escribano, Decimal] = {e: ZERO for e in ALL_ESCRIBANOS}
+    grouped: dict[str, list[LiquidacionEscrituraItem]] = {
+        str(escribano.id): [] for escribano in active_escribanos
+    }
+    totals: dict[str, Decimal] = {str(escribano.id): ZERO for escribano in active_escribanos}
+    names: dict[str, str] = {str(escribano.id): escribano.nombre for escribano in active_escribanos}
 
     for escritura, factura in rows:
+        key = str(escritura.escribano_id)
         item = _to_item(escritura, factura)
-        grouped[escritura.escribano].append(item)
-        totals[escritura.escribano] += item.subtotal
+        if key not in grouped:
+            grouped[key] = []
+            totals[key] = ZERO
+            names[key] = escritura.escribano_nombre
+        grouped[key].append(item)
+        totals[key] += item.subtotal
 
     escribanos = [
         PagoEscribano(
-            nombre=ESCRIBANO_LABELS[escribano],
-            monto_total=totals[escribano],
-            escrituras=grouped[escribano],
+            nombre=names[escribano_id],
+            monto_total=totals[escribano_id],
+            escrituras=grouped[escribano_id],
         )
-        for escribano in ALL_ESCRIBANOS
+        for escribano_id in sorted(names.keys(), key=lambda eid: names[eid].lower())
     ]
 
-    base_total = config.salario_secretarias_total
-    monto_secretaria = base_total / Decimal("2")
+    base_total = sum((empleado.sueldo for empleado in active_empleados), ZERO)
     secretarias = [
-        PagoSecretaria(nombre=nombre, monto=monto_secretaria, base_total=base_total)
-        for nombre in SECRETARIAS
+        PagoSecretaria(nombre=empleado.nombre, monto=empleado.sueldo, base_total=base_total)
+        for empleado in sorted(active_empleados, key=lambda e: e.nombre.lower())
     ]
 
     return PagoSalariosResumen(

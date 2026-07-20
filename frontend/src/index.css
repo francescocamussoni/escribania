@@ -199,6 +199,11 @@ input {
   color: #fff;
 }
 
+.button--small {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+}
+
 .field select,
 .field input[readonly] {
   border: 1px solid #c9d1e0;
@@ -306,6 +311,13 @@ input {
   color: #455a64;
 }
 
+.badge--muted {
+  background: transparent;
+  color: #607d8b;
+  font-weight: 500;
+  padding: 0;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -339,6 +351,18 @@ input {
 .detail-card h2 {
   margin-top: 0;
   font-size: 1.1rem;
+}
+
+.escritura-form__cotizacion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.escritura-form__cotizacion .field {
+  flex: 1 1 12rem;
+  margin: 0;
 }
 
 .escritura-form__grid,
@@ -605,10 +629,126 @@ input {
   gap: 1rem;
 }
 
+.config-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.config-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.config-inline-form .field {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+
+.config-table {
+  display: grid;
+  gap: 0;
+  border: 1px solid #e3e8f0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.config-table__header,
+.config-table__row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1.5fr;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  align-items: center;
+}
+
+.config-table--empleados .config-table__header,
+.config-table--empleados .config-table__row {
+  grid-template-columns: 1.2fr 1fr 1.8fr;
+}
+
+.config-table__header {
+  background: #f4f6fb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #546e7a;
+}
+
+.config-table__row + .config-table__row {
+  border-top: 1px solid #e3e8f0;
+}
+
+.config-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.config-table__amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.config-table__inline-input {
+  width: 100%;
+  max-width: 10rem;
+}
+
 .config-form__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+}
+
+.libro-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.libro-table {
+  padding: 0;
+}
+
+.libro-table__grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.92rem;
+}
+
+.libro-table__grid--header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #5b6477;
+  border-bottom: 1px solid #e8edf5;
+  background: #f8fafc;
+}
+
+.libro-table__grid--row {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.libro-table__amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.libro-table__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+  border-top: 2px solid #e8edf5;
+  background: #f8fafc;
+}
+
+.libro-table__total {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
 }
 
 @media (max-width: 768px) {
@@ -645,8 +785,13 @@ input {
   }
 
   .escribano-card__row,
-  .pago-card__row {
+  .pago-card__row,
+  .libro-table__grid {
     grid-template-columns: 1fr;
     gap: 0.25rem;
+  }
+
+  .libro-table__amount {
+    text-align: left;
   }
 }

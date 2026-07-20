@@ -5,14 +5,13 @@ import type {
   EscrituraResponse,
   EscrituraUpdate,
   EstadoEscritura,
-  Escribano,
   GastoAdicionalInput,
   GastoAdicionalResponse,
 } from "@/types/api";
 
 export interface EscrituraListFilters {
   estado?: EstadoEscritura;
-  escribano?: Escribano;
+  escribano_id?: string;
   anio?: number;
   mes?: number;
 }
@@ -25,8 +24,8 @@ function buildQuery(filters?: EscrituraListFilters): string {
   if (filters.estado) {
     params.set("estado", filters.estado);
   }
-  if (filters.escribano) {
-    params.set("escribano", filters.escribano);
+  if (filters.escribano_id) {
+    params.set("escribano_id", filters.escribano_id);
   }
   if (filters.anio !== undefined) {
     params.set("anio", String(filters.anio));

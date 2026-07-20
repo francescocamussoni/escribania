@@ -9,7 +9,8 @@ export type SseEventType =
   | "escritura.updated"
   | "escritura.closed"
   | "gasto.created"
-  | "liquidacion.updated";
+  | "liquidacion.updated"
+  | "libros_updated";
 
 export interface LoginInput {
   username: string;
@@ -24,7 +25,7 @@ export interface UserResponse {
 
 export interface EscrituraInput {
   nombre: string;
-  escribano: Escribano;
+  escribano_id: string;
   usd_value: string;
   dolar_mep: string;
   dolar_nacion: string;
@@ -32,7 +33,7 @@ export interface EscrituraInput {
 
 export interface EscrituraUpdate {
   nombre?: string;
-  escribano?: Escribano;
+  escribano_id?: string;
   usd_value?: string;
   dolar_mep?: string;
   dolar_nacion?: string;
@@ -98,7 +99,8 @@ export interface EscrituraResponse {
   id: string;
   nombre: string;
   estado: EstadoEscritura;
-  escribano: Escribano;
+  escribano_id: string;
+  escribano_nombre: string;
   usd_value: string;
   dolar_mep: string;
   dolar_nacion: string;
@@ -114,7 +116,8 @@ export interface EscrituraListItem {
   id: string;
   nombre: string;
   estado: EstadoEscritura;
-  escribano: Escribano;
+  escribano_id: string;
+  escribano_nombre: string;
   usd_value: string;
   created_at: string;
   total_factura: string;
@@ -130,7 +133,8 @@ export interface LiquidacionEscrituraItem {
 }
 
 export interface LiquidacionEscribano {
-  escribano: Escribano;
+  escribano_id: string;
+  escribano_nombre: string;
   total: string;
   escrituras: LiquidacionEscrituraItem[];
 }
@@ -207,6 +211,47 @@ export interface ConfiguracionResponse extends ConfiguracionInput {
 }
 
 export interface ApiError {
-  detail: string;
+  detail: string | Record<string, unknown>;
   code?: string;
+}
+
+export type CasaCotizacion = "bolsa" | "oficial";
+
+export interface CotizacionResponse {
+  casa: CasaCotizacion;
+  fecha: string;
+  compra: string;
+  venta: string;
+  source: string;
+}
+
+export interface EscribanoResponse {
+  id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
+export interface EmpleadoResponse {
+  id: string;
+  nombre: string;
+  sueldo: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LibroLineaResponse {
+  escritura_id: string;
+  escritura_nombre: string;
+  concepto: string;
+  monto: string;
+  fecha_escritura: string;
+}
+
+export interface LibroResponse {
+  anio: number;
+  mes: number;
+  lineas: LibroLineaResponse[];
+  total: string;
 }

@@ -21,6 +21,13 @@ function invalidateForEvent(
     void queryClient.invalidateQueries({ queryKey: ["liquidacion"] });
     void queryClient.invalidateQueries({ queryKey: ["salarios"] });
   }
+  if (
+    eventType === "libros_updated" ||
+    eventType.startsWith("escritura.") ||
+    eventType === "gasto.created"
+  ) {
+    void queryClient.invalidateQueries({ queryKey: ["libros"] });
+  }
 }
 
 export function useSSE(enabled = true): void {
@@ -55,6 +62,7 @@ export function useSSE(enabled = true): void {
         "escritura.closed",
         "gasto.created",
         "liquidacion.updated",
+        "libros_updated",
       ];
 
       for (const type of eventTypes) {

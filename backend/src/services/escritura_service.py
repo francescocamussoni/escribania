@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.configuracion import ConfiguracionFinanciera
-from models.escritura import Escritura, Escribano, EstadoEscritura
+from models.escritura import Escritura, EstadoEscritura
+from services.escribano_errors import EscribanoNotFoundError
+from services.escribano_service import get_active_by_id
 from models.factura_principal import FacturaPrincipal
 from models.gasto_adicional import GastoAdicional
 from schemas.escritura import EscrituraInput, EscrituraUpdate
@@ -129,7 +131,15 @@ async def _get_escritura_or_404(session: AsyncSession, escritura_id: uuid.UUID) 
     return escritura
 
 
+async def _resolve_escribano(session: AsyncSession, escribano_id: uuid.UUID):
+    try:
+        return await get_active_by_id(session, escribano_id)
+    except EscribanoNotFoundError as exc:
+        raise ValueError("escribano_id does not reference an active escribano") from exc
+
+
 async def create_escritura(session: AsyncSession, payload: EscrituraInput) -> Escritura:
+    escribano = await _resolve_escribano(session, payload.escribano_id)
     config_row = await get_active_config(session)
     config = config_from_row(config_row)
     calc = calcular_factura_completa(
@@ -142,7 +152,8 @@ async def create_escritura(session: AsyncSession, payload: EscrituraInput) -> Es
     escritura = Escritura(
         id=uuid.uuid4(),
         nombre=payload.nombre,
-        escribano=payload.escribano,
+        escribano_id=escribano.id,
+        escribano_nombre=escribano.nombre,
         usd_value=payload.usd_value,
         dolar_mep=payload.dolar_mep,
         dolar_nacion=payload.dolar_nacion,
@@ -157,6 +168,7 @@ async def create_escritura(session: AsyncSession, payload: EscrituraInput) -> Es
     escritura_id = escritura.id
     await publish("escritura.created", {"escritura_id": str(escritura_id)})
     await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
+    await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return await _get_escritura_or_404(session, escritura_id)
 
@@ -169,7 +181,7 @@ async def list_escrituras(
     session: AsyncSession,
     *,
     estado: EstadoEscritura | None = None,
-    escribano: Escribano | None = None,
+    escribano_id: uuid.UUID | None = None,
     anio: int | None = None,
     mes: int | None = None,
 ) -> list[tuple[Escritura, Decimal]]:
@@ -180,8 +192,8 @@ async def list_escrituras(
     )
     if estado is not None:
         stmt = stmt.where(Escritura.estado == estado)
-    if escribano is not None:
-        stmt = stmt.where(Escritura.escribano == escribano)
+    if escribano_id is not None:
+        stmt = stmt.where(Escritura.escribano_id == escribano_id)
     if anio is not None:
         stmt = stmt.where(extract("year", Escritura.created_at) == anio)
     if mes is not None:
@@ -201,8 +213,10 @@ async def update_escritura(
 
     if payload.nombre is not None:
         escritura.nombre = payload.nombre
-    if payload.escribano is not None:
-        escritura.escribano = payload.escribano
+    if payload.escribano_id is not None:
+        escribano = await _resolve_escribano(session, payload.escribano_id)
+        escritura.escribano_id = escribano.id
+        escritura.escribano_nombre = escribano.nombre
     if payload.usd_value is not None:
         escritura.usd_value = payload.usd_value
     if payload.dolar_mep is not None:
@@ -225,6 +239,7 @@ async def update_escritura(
 
     await publish("escritura.updated", {"escritura_id": str(escritura_id)})
     await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
+    await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return await _get_escritura_or_404(session, escritura_id)
 
@@ -240,6 +255,7 @@ async def close_escritura(session: AsyncSession, escritura_id: uuid.UUID) -> Esc
 
     await publish("escritura.closed", {"escritura_id": str(escritura_id)})
     await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
+    await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return await _get_escritura_or_404(session, escritura_id)
 
@@ -269,5 +285,6 @@ async def add_gasto_adicional(
         {"escritura_id": str(escritura_id), "gasto_id": str(gasto.id)},
     )
     await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
+    await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return gasto

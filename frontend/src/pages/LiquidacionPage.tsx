@@ -59,7 +59,7 @@ export function LiquidacionPage() {
           <LiquidacionResumen data={data} />
           <div className="card-stack">
             {data.por_escribano.map((grupo) => (
-              <EscribanoCard key={grupo.escribano} grupo={grupo} />
+              <EscribanoCard key={grupo.escribano_id} grupo={grupo} />
             ))}
           </div>
         </>

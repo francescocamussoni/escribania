@@ -22,6 +22,16 @@ async function parseError(response: Response): Promise<ApiError | null> {
   }
 }
 
+function detailToMessage(detail: ApiError["detail"] | undefined): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (detail && typeof detail === "object" && typeof detail.detail === "string") {
+    return detail.detail;
+  }
+  return "";
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -39,7 +49,7 @@ export async function apiFetch<T>(
 
   if (!response.ok) {
     const body = await parseError(response);
-    const message = body?.detail ?? `Error HTTP ${response.status}`;
+    const message = detailToMessage(body?.detail) || `Error HTTP ${response.status}`;
     throw new ApiRequestError(message, response.status, body);
   }
 

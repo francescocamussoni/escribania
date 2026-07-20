@@ -6,6 +6,9 @@ const links = [
   { to: "/escrituras", label: "Escrituras" },
   { to: "/liquidacion", label: "Liquidación" },
   { to: "/salarios", label: "Pago de Salarios" },
+  { to: "/libro-entrada", label: "Libro de Entrada" },
+  { to: "/libro-salida", label: "Libro de Salida" },
+  { to: "/configuracion", label: "Configuración" },
 ] as const;
 
 interface NavbarProps {

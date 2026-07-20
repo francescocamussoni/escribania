@@ -1,4 +1,4 @@
-import type { Escribano, EstadoEscritura } from "@/types/api";
+import type { Escribano, EscribanoResponse, EstadoEscritura } from "@/types/api";
 
 export function formatMoney(value: string): string {
   const amount = Number(value);
@@ -19,6 +19,17 @@ export function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+export function formatDateOnly(value: string): string {
+  const parts = value.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return value;
+  }
+  const [year, month, day] = parts;
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" }).format(
+    new Date(year, month - 1, day),
+  );
+}
+
 const ESCRIBANO_LABELS: Record<Escribano, string> = {
   costanza: "Costanza",
   gabriel: "Gabriel",
@@ -27,6 +38,18 @@ const ESCRIBANO_LABELS: Record<Escribano, string> = {
 
 export function labelEscribano(escribano: Escribano): string {
   return ESCRIBANO_LABELS[escribano];
+}
+
+export function displayEscribanoNombre(
+  escribanoId: string,
+  nombre: string,
+  escribanos?: EscribanoResponse[],
+): string {
+  const record = escribanos?.find((item) => item.id === escribanoId);
+  if (record && !record.activo) {
+    return `${nombre} (inactivo)`;
+  }
+  return nombre;
 }
 
 export function labelEstado(estado: EstadoEscritura): string {

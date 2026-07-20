@@ -1,0 +1,480 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Patch (feature 002-platform-extensions)
+  description: |
+    New and modified endpoints added by feature 002-platform-extensions.
+    All endpoints inherit the authentication and error model from the base API
+    (feature 001). Every endpoint requires a valid JWT session cookie.
+  version: 0.2.0
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+
+    # ── Cotización ──────────────────────────────────────────────────────────
+
+    CotizacionResponse:
+      type: object
+      required: [casa, fecha, compra, venta]
+      properties:
+        casa:
+          type: string
+          enum: [bolsa, oficial]
+          description: "bolsa = Dólar MEP; oficial = Dólar Banco Nación"
+        fecha:
+          type: string
+          format: date
+          example: "2026-07-18"
+        compra:
+          type: number
+          format: decimal
+          example: 1190.50
+        venta:
+          type: number
+          format: decimal
+          example: 1195.00
+        source:
+          type: string
+          enum: [api, cache, fallback]
+          description: Whether the value came from a live API call, TTL cache, or fallback API
+
+    # ── Escribano ───────────────────────────────────────────────────────────
+
+    EscribanoResponse:
+      type: object
+      required: [id, nombre, activo, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          example: "Costanza"
+        activo:
+          type: boolean
+          description: false when soft-deleted
+        created_at:
+          type: string
+          format: date-time
+
+    EscribanoCreateRequest:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "Martínez"
+
+    # ── Empleado ─────────────────────────────────────────────────────────────
+
+    EmpleadoResponse:
+      type: object
+      required: [id, nombre, sueldo, activo, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          example: "Graciela"
+        sueldo:
+          type: number
+          format: decimal
+          example: 1000000.00
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EmpleadoCreateRequest:
+      type: object
+      required: [nombre, sueldo]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        sueldo:
+          type: number
+          format: decimal
+          exclusiveMinimum: 0
+
+    EmpleadoUpdateRequest:
+      type: object
+      required: [sueldo]
+      properties:
+        sueldo:
+          type: number
+          format: decimal
+          exclusiveMinimum: 0
+
+    # ── Libros ───────────────────────────────────────────────────────────────
+
+    LibroLineaResponse:
+      type: object
+      required: [escritura_id, escritura_nombre, concepto, monto, fecha_escritura]
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        escritura_nombre:
+          type: string
+          example: "Venta López - Martínez"
+        concepto:
+          type: string
+          example: "Honorarios Profesionales"
+        monto:
+          type: number
+          format: decimal
+          example: 3654856.80
+        fecha_escritura:
+          type: string
+          format: date
+          description: Date portion of Escritura.created_at (for display)
+
+    LibroResponse:
+      type: object
+      required: [anio, mes, lineas, total]
+      properties:
+        anio:
+          type: integer
+          example: 2026
+        mes:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 7
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibroLineaResponse'
+        total:
+          type: number
+          format: decimal
+          description: Sum of all monto values in this period
+
+    # ── Shared ───────────────────────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+security:
+  - cookieAuth: []
+
+paths:
+
+  # ── Cotización ─────────────────────────────────────────────────────────────
+
+  /cotizacion:
+    get:
+      summary: Get official dollar exchange rate for a given date
+      description: |
+        Proxies ArgentinaDatos API. Results cached server-side for 8 hours (TTL).
+        For past dates, cache is permanent (historical rates are immutable).
+        On API failure, returns 503 with a descriptive message — never blocks the escritura form.
+      operationId: getCotizacion
+      parameters:
+        - name: casa
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [bolsa, oficial]
+          description: "bolsa = Dólar MEP; oficial = Dólar Banco Nación"
+        - name: fecha
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: "Date to query (default: today). Future dates return 404."
+      responses:
+        "200":
+          description: Exchange rate for the requested date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CotizacionResponse'
+        "404":
+          description: No exchange rate available for the requested date (future date or market holiday)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "422":
+          description: Validation error (invalid casa value)
+        "503":
+          description: External API unavailable or timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── Configuración — Escribanos ─────────────────────────────────────────────
+
+  /configuracion/escribanos:
+    get:
+      summary: List all active escribanos
+      operationId: listEscribanos
+      parameters:
+        - name: include_inactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: When true, also returns soft-deleted escribanos (for admin display)
+      responses:
+        "200":
+          description: List of escribanos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EscribanoResponse'
+
+    post:
+      summary: Create a new escribano
+      operationId: createEscribano
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscribanoCreateRequest'
+      responses:
+        "201":
+          description: Escribano created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscribanoResponse'
+        "409":
+          description: An active escribano with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /configuracion/escribanos/{id}:
+    delete:
+      summary: Soft-delete an escribano
+      description: |
+        Sets deleted_at on the escribano. If the escribano has associated escrituras,
+        the `force` query parameter must be explicitly set to `true` to proceed.
+        Without `force=true`, returns 409 with a list of associated escritura counts.
+      operationId: deactivateEscribano
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Must be true to deactivate an escribano that has associated escrituras
+      responses:
+        "204":
+          description: Escribano deactivated successfully
+        "404":
+          description: Escribano not found
+        "409":
+          description: |
+            Escribano has associated escrituras and force=true was not provided.
+            Response body includes the count of associated escrituras.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                  escrituras_count:
+                    type: integer
+
+  # ── Configuración — Empleados ──────────────────────────────────────────────
+
+  /configuracion/empleados:
+    get:
+      summary: List all active employees
+      operationId: listEmpleados
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmpleadoResponse'
+
+    post:
+      summary: Create a new employee
+      operationId: createEmpleado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmpleadoCreateRequest'
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmpleadoResponse'
+        "409":
+          description: An active employee with this name already exists
+
+  /configuracion/empleados/{id}:
+    patch:
+      summary: Update employee salary
+      operationId: updateEmpleadoSueldo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmpleadoUpdateRequest'
+      responses:
+        "200":
+          description: Employee updated with new salary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmpleadoResponse'
+        "404":
+          description: Employee not found
+        "422":
+          description: Salary must be greater than 0
+
+    delete:
+      summary: Soft-delete an employee
+      operationId: deactivateEmpleado
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Employee deactivated
+        "404":
+          description: Employee not found
+
+  # ── Libros ─────────────────────────────────────────────────────────────────
+
+  /libros/entrada:
+    get:
+      summary: Get Libro de Entrada for a given month
+      description: |
+        Returns all incoming cash flow lines (honorarios + certificación +
+        gastos adicionales marcados como 'entrada') for all escrituras created
+        in the specified month, both open and closed.
+        Default period: current month.
+      operationId: getLibroEntrada
+      parameters:
+        - name: anio
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+        - name: mes
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 7
+      responses:
+        "200":
+          description: Libro de Entrada for the requested period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibroResponse'
+
+  /libros/salida:
+    get:
+      summary: Get Libro de Salida for a given month
+      description: |
+        Returns all outgoing cash flow lines (impuestos, sellos, aportes notariales,
+        gastos administrativos, gastos adicionales marcados como 'salida') for all
+        escrituras created in the specified month, both open and closed.
+        Default period: current month.
+      operationId: getLibroSalida
+      parameters:
+        - name: anio
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2026
+        - name: mes
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 7
+      responses:
+        "200":
+          description: Libro de Salida for the requested period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibroResponse'
+
+  # ── Modified endpoint — Escrituras (escribano field) ────────────────────────
+
+  # NOTE: POST /escrituras and PATCH /escrituras/{id} from feature 001 are
+  # modified to:
+  #   - Replace `escribano: enum` field with `escribano_id: uuid`
+  #   - The response adds `escribano_nombre: string` (snapshot)
+  #   - EscrituraCreateRequest.escribano_id must reference an active Escribano
+  #     (400 if soft-deleted or not found)
+
+  # ── Modified endpoint — Salarios (empleado-based) ────────────────────────────
+
+  # NOTE: GET /salarios from feature 001 is modified to:
+  #   - Read salary amounts from Empleado.sueldo (active employees) instead of
+  #     ConfiguracionFinanciera.salario_secretarias_total
+  #   - Response includes per-employee breakdown (one entry per active Empleado
+  #     of type secretaria)

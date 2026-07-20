@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
+import { EmpleadosConfig } from "@/components/configuracion/EmpleadosConfig";
+import { EscribanosConfig } from "@/components/configuracion/EscribanosConfig";
 import type { ConfiguracionInput, ConfiguracionResponse } from "@/types/api";
 import {
   useConfiguracion,
@@ -7,6 +9,14 @@ import {
 } from "@/hooks/useConfiguracion";
 import { formatDate } from "@/utils/format";
 import { friendlyApiError } from "@/utils/errors";
+
+type ConfigTab = "financiera" | "escribanos" | "empleados";
+
+const TABS: { id: ConfigTab; label: string }[] = [
+  { id: "financiera", label: "Financiera" },
+  { id: "escribanos", label: "Escribanos" },
+  { id: "empleados", label: "Empleados" },
+];
 
 type ConfigFieldKey = Exclude<keyof ConfiguracionInput, "descripcion">;
 
@@ -137,9 +147,8 @@ function buildPayload(
   return payload;
 }
 
-export function ConfiguracionPage() {
+function ConfiguracionFinancieraPanel() {
   const { data, isLoading, error } = useConfiguracion();
-  const { data: history } = useConfiguracionHistory();
   const createMutation = useCreateConfiguracion();
 
   const [descripcion, setDescripcion] = useState("");
@@ -192,62 +201,95 @@ export function ConfiguracionPage() {
   }
 
   return (
+    <form className="config-form" onSubmit={handleSubmit}>
+      <section className="detail-card">
+        <h2>Notas de la versión</h2>
+        <label className="field">
+          <span>Descripción (opcional)</span>
+          <input
+            type="text"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Ej: Ajuste salarios julio 2026"
+          />
+        </label>
+      </section>
+
+      {CONFIG_SECTIONS.map((section) => (
+        <section key={section.title} className="detail-card">
+          <h2>{section.title}</h2>
+          <div className="config-form__grid">
+            {section.fields.map((field) => (
+              <label key={field.key} className="field">
+                <span>{field.label}</span>
+                <input
+                  type="number"
+                  step={field.step ?? "0.01"}
+                  min="0"
+                  value={values[field.key]}
+                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                  required
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {formError ? <p className="form-error">{formError}</p> : null}
+      {successMessage ? <p className="form-success">{successMessage}</p> : null}
+
+      <div className="form-actions">
+        <button type="submit" className="button button--primary" disabled={createMutation.isPending}>
+          {createMutation.isPending ? "Guardando…" : "Guardar nueva versión"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function ConfiguracionPage() {
+  const [activeTab, setActiveTab] = useState<ConfigTab>("financiera");
+  const { data } = useConfiguracion();
+  const { data: history } = useConfiguracionHistory();
+
+  return (
     <div className="config-page">
       <header className="page-header page-header--stacked">
         <div>
           <h1>Configuración</h1>
           <p className="page-muted">
-            Versión activa: <strong>v{data?.version}</strong>
-            {data?.created_at ? ` · actualizada ${formatDate(data.created_at)}` : null}
-            {history ? ` · ${history.length} versiones en historial` : null}
+            {activeTab === "financiera" && data ? (
+              <>
+                Versión activa: <strong>v{data.version}</strong>
+                {data.created_at ? ` · actualizada ${formatDate(data.created_at)}` : null}
+                {history ? ` · ${history.length} versiones en historial` : null}
+              </>
+            ) : (
+              "Parámetros financieros, escribanos y empleados."
+            )}
           </p>
         </div>
       </header>
 
-      <form className="config-form" onSubmit={handleSubmit}>
-        <section className="detail-card">
-          <h2>Notas de la versión</h2>
-          <label className="field">
-            <span>Descripción (opcional)</span>
-            <input
-              type="text"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: Ajuste salarios julio 2026"
-            />
-          </label>
-        </section>
-
-        {CONFIG_SECTIONS.map((section) => (
-          <section key={section.title} className="detail-card">
-            <h2>{section.title}</h2>
-            <div className="config-form__grid">
-              {section.fields.map((field) => (
-                <label key={field.key} className="field">
-                  <span>{field.label}</span>
-                  <input
-                    type="number"
-                    step={field.step ?? "0.01"}
-                    min="0"
-                    value={values[field.key]}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    required
-                  />
-                </label>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {formError ? <p className="form-error">{formError}</p> : null}
-        {successMessage ? <p className="form-success">{successMessage}</p> : null}
-
-        <div className="form-actions">
-          <button type="submit" className="button button--primary" disabled={createMutation.isPending}>
-            {createMutation.isPending ? "Guardando…" : "Guardar nueva versión"}
+      <div className="filter-tabs" role="tablist" aria-label="Secciones de configuración">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`filter-tabs__tab${activeTab === tab.id ? " filter-tabs__tab--active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
           </button>
-        </div>
-      </form>
+        ))}
+      </div>
+
+      {activeTab === "financiera" ? <ConfiguracionFinancieraPanel /> : null}
+      {activeTab === "escribanos" ? <EscribanosConfig /> : null}
+      {activeTab === "empleados" ? <EmpleadosConfig /> : null}
     </div>
   );
 }

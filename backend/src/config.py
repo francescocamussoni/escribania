@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     jwt_expiry_hours: int = 8
     cors_origins: str = "http://localhost:5173"
 
+    # Dollar exchange rate API — ArgentinaDatos as primary, DolarAPI as fallback
+    cotizacion_api_url: str = "https://api.argentinadatos.com/v1/cotizaciones/dolares"
+    cotizacion_fallback_url: str = "https://dolarapi.com/v1/dolares"
+    cotizacion_cache_ttl_hours: int = 8
+    cotizacion_ssl_verify: bool = True
+
     @property
     def database_url(self) -> str:
         return (

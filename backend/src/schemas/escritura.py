@@ -4,7 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from models.escritura import Escribano
 from schemas.common import MoneyStr
 from schemas.factura import FacturaPrincipalResponse
 from schemas.gasto import GastoAdicionalResponse
@@ -14,7 +13,7 @@ class EscrituraInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     nombre: str = Field(min_length=1, max_length=255)
-    escribano: Escribano
+    escribano_id: UUID
     usd_value: Decimal = Field(gt=0)
     dolar_mep: Decimal = Field(gt=0)
     dolar_nacion: Decimal = Field(gt=0)
@@ -33,7 +32,7 @@ class EscrituraUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     nombre: str | None = Field(default=None, min_length=1, max_length=255)
-    escribano: Escribano | None = None
+    escribano_id: UUID | None = None
     usd_value: Decimal | None = Field(default=None, gt=0)
     dolar_mep: Decimal | None = Field(default=None, gt=0)
     dolar_nacion: Decimal | None = Field(default=None, gt=0)
@@ -56,7 +55,8 @@ class EscrituraListItem(BaseModel):
     id: UUID
     nombre: str
     estado: str
-    escribano: Escribano
+    escribano_id: UUID
+    escribano_nombre: str
     usd_value: MoneyStr
     created_at: datetime
     total_factura: MoneyStr
@@ -68,7 +68,8 @@ class EscrituraResponse(BaseModel):
     id: UUID
     nombre: str
     estado: str
-    escribano: Escribano
+    escribano_id: UUID
+    escribano_nombre: str
     usd_value: MoneyStr
     dolar_mep: MoneyStr
     dolar_nacion: MoneyStr

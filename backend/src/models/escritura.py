@@ -1,9 +1,27 @@
+"""ORM model for Escritura (Deed Document).
+
+Modified in feature 002 to replace the hardcoded Escribano ENUM with a
+dynamic FK to the Escribano table. A `escribano_nombre` snapshot column is
+added to preserve the display name even after an Escribano is soft-deleted.
+
+Changes from feature 001:
+- REMOVED: `Escribano` ENUM class (moved to models/escribano.py as a proper entity).
+- REMOVED: `escribano` ENUM column.
+- ADDED: `escribano_id` FK → escribano.id (not null).
+- ADDED: `escribano_nombre` VARCHAR(100) (not null — snapshot at creation time).
+
+Backward compatibility:
+- `Escribano` is re-exported from `models.escribano` so existing imports of
+  `from models.escritura import Escribano` continue to work during the
+  transition. Services that use the ENUM values will be updated in WU-012+.
+"""
+
+from __future__ import annotations
+
 import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, func
@@ -15,23 +33,22 @@ from database import Base
 if TYPE_CHECKING:
     from models.gasto_adicional import GastoAdicional
 
+# Re-export for backward compatibility: existing imports of
+# `from models.escritura import Escribano` still resolve during transition.
+# TODO(WU-012+): remove once all services are migrated to use models.escribano directly.
+from models.escribano import Escribano as Escribano  # noqa: F401
+
 
 class EstadoEscritura(str, enum.Enum):
     ABIERTA = "abierta"
     CERRADA = "cerrada"
 
 
-class Escribano(str, enum.Enum):
-    COSTANZA = "costanza"
-    GABRIEL = "gabriel"
-    VICTORIA = "victoria"
-
-
 class Escritura(Base):
     __tablename__ = "escrituras"
     __table_args__ = (
         Index("ix_escrituras_created_at", "created_at"),
-        Index("ix_escrituras_escribano", "escribano"),
+        Index("ix_escrituras_escribano_id", "escribano_id"),
         Index("ix_escrituras_estado", "estado"),
     )
 
@@ -42,10 +59,16 @@ class Escritura(Base):
         nullable=False,
         default=EstadoEscritura.ABIERTA,
     )
-    escribano: Mapped[Escribano] = mapped_column(
-        Enum(Escribano, name="escribano", values_callable=lambda x: [e.value for e in x]),
+
+    # Dynamic FK replacing the old hardcoded ENUM (feature 002)
+    escribano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("escribano.id"),
         nullable=False,
     )
+    # Snapshot of escribano name at creation time — preserved even after soft delete
+    escribano_nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+
     usd_value: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
     dolar_mep: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
     dolar_nacion: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
@@ -60,5 +83,9 @@ class Escritura(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    factura: Mapped["FacturaPrincipal"] = relationship(back_populates="escritura", uselist=False)
+    escribano_ref: Mapped["Escribano"] = relationship(
+        back_populates="escrituras",
+        foreign_keys=[escribano_id],
+    )
+    factura: Mapped["FacturaPrincipal"] = relationship(back_populates="escritura", uselist=False)  # type: ignore[name-defined]  # noqa: F821
     gastos: Mapped[list["GastoAdicional"]] = relationship(back_populates="escritura")

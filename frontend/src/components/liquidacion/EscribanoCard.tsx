@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { LiquidacionEscribano } from "@/types/api";
-import { formatMoney, labelEscribano, labelEstado } from "@/utils/format";
+import { formatMoney, labelEstado } from "@/utils/format";
 
 interface EscribanoCardProps {
   grupo: LiquidacionEscribano;
@@ -19,7 +19,7 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
         aria-expanded={expanded}
       >
         <div>
-          <h3>{labelEscribano(grupo.escribano)}</h3>
+          <h3>{grupo.escribano_nombre}</h3>
           <p className="page-muted">
             {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"}
           </p>

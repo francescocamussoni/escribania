@@ -1,8 +1,17 @@
-import { FormEvent, useState } from "react";
-import type { EscrituraInput, EscrituraResponse, Escribano } from "@/types/api";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { EscrituraInput, EscrituraResponse } from "@/types/api";
+import { useCotizacion } from "@/hooks/useCotizacion";
+import { useEscribanos } from "@/hooks/useEscribanos";
+import { displayEscribanoNombre } from "@/utils/format";
 import { friendlyApiError } from "@/utils/errors";
 
-const ESCRIBANOS: Escribano[] = ["costanza", "gabriel", "victoria"];
+function todayISODate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 interface EscrituraFormProps {
   initial?: EscrituraResponse;
@@ -19,17 +28,58 @@ export function EscrituraForm({
   onSubmit,
   onCancel,
 }: EscrituraFormProps) {
+  const { data: escribanosActivos, isLoading: escribanosLoading } = useEscribanos(false);
+  const { data: todosEscribanos } = useEscribanos(true);
+
   const [nombre, setNombre] = useState(initial?.nombre ?? "");
-  const [escribano, setEscribano] = useState<Escribano>(initial?.escribano ?? "costanza");
+  const [escribanoId, setEscribanoId] = useState(initial?.escribano_id ?? "");
   const [usdValue, setUsdValue] = useState(initial?.usd_value ?? "");
   const [dolarMep, setDolarMep] = useState(initial?.dolar_mep ?? "");
   const [dolarNacion, setDolarNacion] = useState(initial?.dolar_nacion ?? "");
+  const [cotizacionFecha, setCotizacionFecha] = useState(todayISODate);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const {
+    status: cotizacionStatus,
+    error: cotizacionError,
+    fetchRate,
+    reset: resetCotizacion,
+  } = useCotizacion();
+
+  const escribanoOptions = useMemo(() => {
+    const active = escribanosActivos ?? [];
+    const optionIds = new Set(active.map((item) => item.id));
+    if (initial?.escribano_id && !optionIds.has(initial.escribano_id)) {
+      const current = todosEscribanos?.find((item) => item.id === initial.escribano_id);
+      if (current) {
+        return [...active, current];
+      }
+    }
+    return active;
+  }, [escribanosActivos, initial?.escribano_id, todosEscribanos]);
+
+  useEffect(() => {
+    if (escribanoId || escribanoOptions.length === 0) {
+      return;
+    }
+    setEscribanoId(escribanoOptions[0].id);
+  }, [escribanoId, escribanoOptions]);
+
+  const handleConsultarCotizacion = async () => {
+    resetCotizacion();
+    try {
+      const mep = await fetchRate("bolsa", cotizacionFecha);
+      const nacion = await fetchRate("oficial", cotizacionFecha);
+      setDolarMep(mep.venta);
+      setDolarNacion(nacion.venta);
+    } catch {
+      // Error message is exposed via cotizacionError.
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (readOnly) {
+    if (readOnly || !escribanoId) {
       return;
     }
     setError(null);
@@ -37,7 +87,7 @@ export function EscrituraForm({
     try {
       await onSubmit({
         nombre: nombre.trim(),
-        escribano,
+        escribano_id: escribanoId,
         usd_value: usdValue,
         dolar_mep: dolarMep,
         dolar_nacion: dolarNacion,
@@ -48,6 +98,8 @@ export function EscrituraForm({
       setLoading(false);
     }
   };
+
+  const selectedEscribano = escribanoOptions.find((item) => item.id === escribanoId);
 
   return (
     <form className="escritura-form" onSubmit={handleSubmit}>
@@ -64,18 +116,60 @@ export function EscrituraForm({
 
       <label className="field">
         <span>Escribano</span>
-        <select
-          value={escribano}
-          onChange={(e) => setEscribano(e.target.value as Escribano)}
-          disabled={readOnly}
-        >
-          {ESCRIBANOS.map((value) => (
-            <option key={value} value={value}>
-              {value.charAt(0).toUpperCase() + value.slice(1)}
-            </option>
-          ))}
-        </select>
+        {readOnly ? (
+          <input
+            type="text"
+            readOnly
+            value={displayEscribanoNombre(
+              initial?.escribano_id ?? escribanoId,
+              initial?.escribano_nombre ?? selectedEscribano?.nombre ?? "",
+              todosEscribanos,
+            )}
+          />
+        ) : escribanosLoading ? (
+          <input type="text" readOnly value="Cargando escribanos…" />
+        ) : escribanoOptions.length === 0 ? (
+          <p className="form-error">No hay escribanos activos. Agregá uno en Configuración.</p>
+        ) : (
+          <select
+            value={escribanoId}
+            onChange={(e) => setEscribanoId(e.target.value)}
+            required
+          >
+            {escribanoOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {displayEscribanoNombre(item.id, item.nombre, todosEscribanos)}
+              </option>
+            ))}
+          </select>
+        )}
       </label>
+
+      {!readOnly ? (
+        <div className="escritura-form__cotizacion">
+          <label className="field">
+            <span>Fecha de cotización</span>
+            <input
+              type="date"
+              value={cotizacionFecha}
+              onChange={(e) => {
+                setCotizacionFecha(e.target.value);
+                resetCotizacion();
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={() => void handleConsultarCotizacion()}
+            disabled={cotizacionStatus === "loading"}
+          >
+            {cotizacionStatus === "loading" ? "Consultando…" : "Consultar cotización"}
+          </button>
+        </div>
+      ) : null}
+
+      {cotizacionError ? <p className="form-error">{cotizacionError}</p> : null}
 
       <div className="escritura-form__grid">
         <label className="field">
@@ -125,7 +219,11 @@ export function EscrituraForm({
               Cancelar
             </button>
           ) : null}
-          <button type="submit" className="button button--primary" disabled={loading}>
+          <button
+            type="submit"
+            className="button button--primary"
+            disabled={loading || !escribanoId || escribanoOptions.length === 0}
+          >
             {loading ? "Guardando…" : submitLabel}
           </button>
         </div>

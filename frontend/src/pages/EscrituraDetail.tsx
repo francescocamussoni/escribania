@@ -8,7 +8,8 @@ import {
   useEscritura,
   usePatchEscritura,
 } from "@/hooks/useEscrituras";
-import { formatDate, formatMoney, labelEscribano, labelEstado } from "@/utils/format";
+import { formatDate, formatMoney, displayEscribanoNombre, labelEstado } from "@/utils/format";
+import { useEscribanos } from "@/hooks/useEscribanos";
 
 export function EscrituraDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,8 @@ export function EscrituraDetail() {
   const patchMutation = usePatchEscritura(id ?? "");
   const closeMutation = useCloseEscritura(id ?? "");
   const addGastoMutation = useAddGasto(id ?? "");
+
+  const { data: escribanos } = useEscribanos(true);
 
   if (isLoading) {
     return <p className="page-muted">Cargando escritura…</p>;
@@ -53,7 +56,12 @@ export function EscrituraDetail() {
           </Link>
           <h1>{escritura.nombre}</h1>
           <p className="page-muted">
-            {labelEscribano(escritura.escribano)} ·{" "}
+            {displayEscribanoNombre(
+              escritura.escribano_id,
+              escritura.escribano_nombre,
+              escribanos,
+            )}{" "}
+            ·{" "}
             <span className={`badge badge--${escritura.estado}`}>{labelEstado(escritura.estado)}</span>
             {escritura.closed_at ? ` · Cerrada ${formatDate(escritura.closed_at)}` : null}
           </p>

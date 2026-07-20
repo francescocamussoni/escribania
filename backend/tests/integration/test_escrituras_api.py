@@ -1,12 +1,9 @@
-from datetime import date
 from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
 
-CANONICAL_PAYLOAD = {
-    "nombre": "Compraventa Calle Falsa 123",
-    "escribano": "costanza",
+BASE_PAYLOAD = {
     "usd_value": "105000.00",
     "dolar_mep": "1450.34",
     "dolar_nacion": "1425.00",
@@ -25,6 +22,14 @@ EXPECTED_FACTURA = {
 }
 
 
+def _payload(escribano_ids: dict[str, str], *, nombre: str, escribano: str) -> dict[str, str]:
+    return {
+        **BASE_PAYLOAD,
+        "nombre": nombre,
+        "escribano_id": escribano_ids[escribano],
+    }
+
+
 def _assert_canonical_factura(factura: dict) -> None:
     for field, expected in EXPECTED_FACTURA.items():
         assert factura[field] == expected, f"{field}: expected {expected}, got {factura[field]}"
@@ -33,16 +38,20 @@ def _assert_canonical_factura(factura: dict) -> None:
 @pytest.mark.asyncio
 async def test_create_escritura_calculates_factura(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
-    response = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    response = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     assert response.status_code == 201
 
     body = response.json()
     cleanup_escrituras.append(body["id"])
     assert body["estado"] == "abierta"
-    assert body["nombre"] == CANONICAL_PAYLOAD["nombre"]
+    assert body["escribano_nombre"] == "Costanza"
     assert body["gastos_adicionales"] == []
     _assert_canonical_factura(body["factura"])
 
@@ -50,29 +59,34 @@ async def test_create_escritura_calculates_factura(
 @pytest.mark.asyncio
 async def test_list_escrituras_with_filters(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
     create_costanza = await auth_client.post(
         "/api/v1/escrituras",
-        json={**CANONICAL_PAYLOAD, "nombre": "Escritura Costanza", "escribano": "costanza"},
+        json=_payload(escribano_ids, nombre="Escritura Costanza", escribano="costanza"),
     )
     create_gabriel = await auth_client.post(
         "/api/v1/escrituras",
-        json={**CANONICAL_PAYLOAD, "nombre": "Escritura Gabriel", "escribano": "gabriel"},
+        json=_payload(escribano_ids, nombre="Escritura Gabriel", escribano="gabriel"),
     )
     assert create_costanza.status_code == 201
     assert create_gabriel.status_code == 201
 
     costanza_id = create_costanza.json()["id"]
     gabriel_id = create_gabriel.json()["id"]
+    gabriel_escribano_id = create_gabriel.json()["escribano_id"]
     cleanup_escrituras.extend([costanza_id, gabriel_id])
 
-    by_escribano = await auth_client.get("/api/v1/escrituras", params={"escribano": "gabriel"})
+    by_escribano = await auth_client.get(
+        "/api/v1/escrituras",
+        params={"escribano_id": gabriel_escribano_id},
+    )
     assert by_escribano.status_code == 200
     gabriel_items = by_escribano.json()
     assert len(gabriel_items) >= 1
-    assert all(item["escribano"] == "gabriel" for item in gabriel_items)
+    assert all(item["escribano_nombre"] == "Gabriel" for item in gabriel_items)
 
     by_estado = await auth_client.get("/api/v1/escrituras", params={"estado": "abierta"})
     assert by_estado.status_code == 200
@@ -92,10 +106,14 @@ async def test_list_escrituras_with_filters(
 @pytest.mark.asyncio
 async def test_get_escritura_detail(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     assert created.status_code == 201
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
@@ -113,6 +131,7 @@ async def test_get_escritura_detail(
 @pytest.mark.asyncio
 async def test_patch_open_escritura_recalculates(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
@@ -120,7 +139,10 @@ async def test_patch_open_escritura_recalculates(
     honorario_min = Decimal(config.json()["honorario_min"])
     honorario_pct = Decimal(config.json()["honorario_pct"])
 
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
 
@@ -140,10 +162,14 @@ async def test_patch_open_escritura_recalculates(
 @pytest.mark.asyncio
 async def test_patch_closed_escritura_returns_409(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
 
@@ -162,10 +188,14 @@ async def test_patch_closed_escritura_returns_409(
 @pytest.mark.asyncio
 async def test_close_escritura_sets_cerrada(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
 
@@ -180,10 +210,14 @@ async def test_close_escritura_sets_cerrada(
 @pytest.mark.asyncio
 async def test_add_gasto_to_open_escritura(
     auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
     seeded_config,
     cleanup_escrituras: list,
 ) -> None:
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=_payload(escribano_ids, nombre="Compraventa Calle Falsa 123", escribano="costanza"),
+    )
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
 

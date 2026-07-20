@@ -5,6 +5,8 @@ import { EscriturasPage } from "@/pages/EscriturasPage";
 import { LiquidacionPage } from "@/pages/LiquidacionPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ConfiguracionPage } from "@/pages/ConfiguracionPage";
+import { LibroEntradaPage } from "@/pages/LibroEntradaPage";
+import { LibroSalidaPage } from "@/pages/LibroSalidaPage";
 import { SalariosPage } from "@/pages/SalariosPage";
 
 export function App() {
@@ -18,6 +20,8 @@ export function App() {
           <Route path="/escrituras/:id" element={<EscrituraDetail />} />
           <Route path="/liquidacion" element={<LiquidacionPage />} />
           <Route path="/salarios" element={<SalariosPage />} />
+          <Route path="/libro-entrada" element={<LibroEntradaPage />} />
+          <Route path="/libro-salida" element={<LibroSalidaPage />} />
           <Route path="/configuracion" element={<ConfiguracionPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/escrituras" replace />} />

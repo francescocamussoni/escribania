@@ -4,10 +4,12 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.configuracion import ConfiguracionFinanciera
-from models.escritura import Escritura, Escribano, EstadoEscritura
+from models.escribano import Escribano
+from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
 from services.calculo_factura import calcular_factura_completa
 from services.escritura_service import config_from_row
@@ -19,6 +21,27 @@ DOLAR_NACION = Decimal("1425.00")
 CANONICAL_HONORARIO = Decimal("3654856.80")
 CANONICAL_CERTIFICACION = Decimal("456857.10")
 CANONICAL_SUBTOTAL = Decimal("4111713.90")
+
+CANONICAL_API_BASE = {
+    "usd_value": "105000.00",
+    "dolar_mep": "1450.34",
+    "dolar_nacion": "1425.00",
+}
+
+
+def canonical_escritura_payload(
+    escribano_ids: dict[str, str],
+    *,
+    nombre: str = "Compraventa Calle Falsa 123",
+    escribano: str = "costanza",
+    **overrides: str,
+) -> dict[str, str]:
+    return {
+        **CANONICAL_API_BASE,
+        "nombre": nombre,
+        "escribano_id": escribano_ids[escribano],
+        **overrides,
+    }
 
 FACTURA_FIELDS = (
     "monto_base_mep",
@@ -58,15 +81,25 @@ FACTURA_FIELDS = (
 )
 
 
+async def get_escribano_by_name(session: AsyncSession, nombre: str) -> Escribano:
+    escribano = await session.scalar(select(Escribano).where(Escribano.nombre == nombre))
+    if escribano is None:
+        raise RuntimeError(
+            f"Escribano '{nombre}' not found — run alembic upgrade head (migration 005)"
+        )
+    return escribano
+
+
 async def insert_test_escritura(
     session: AsyncSession,
     config_row: ConfiguracionFinanciera,
     *,
-    escribano: Escribano,
+    escribano_nombre: str = "Costanza",
     created_at: datetime,
     estado: EstadoEscritura = EstadoEscritura.ABIERTA,
     nombre: str = "Escritura test",
 ) -> Escritura:
+    escribano = await get_escribano_by_name(session, escribano_nombre)
     calc = calcular_factura_completa(
         USD,
         DOLAR_MEP,
@@ -77,7 +110,8 @@ async def insert_test_escritura(
     escritura = Escritura(
         id=escritura_id,
         nombre=nombre,
-        escribano=escribano,
+        escribano_id=escribano.id,
+        escribano_nombre=escribano.nombre,
         usd_value=USD,
         dolar_mep=DOLAR_MEP,
         dolar_nacion=DOLAR_NACION,

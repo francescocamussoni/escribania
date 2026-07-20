@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from models.escritura import Escribano, EstadoEscritura
+from models.escritura import EstadoEscritura
 from schemas.common import MoneyStr
 
 
@@ -16,7 +16,8 @@ class LiquidacionEscrituraItem(BaseModel):
 
 
 class LiquidacionEscribano(BaseModel):
-    escribano: Escribano
+    escribano_id: str
+    escribano_nombre: str
     total: MoneyStr
     escrituras: list[LiquidacionEscrituraItem]
 

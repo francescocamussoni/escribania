@@ -1,7 +1,9 @@
 api
 config
 database
+events
 main
+middleware
 models
 schemas
 services

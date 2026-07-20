@@ -3,13 +3,7 @@ from decimal import Decimal
 import pytest
 from httpx import AsyncClient
 
-CANONICAL_PAYLOAD = {
-    "nombre": "Compraventa Calle Falsa 123",
-    "escribano": "costanza",
-    "usd_value": "105000.00",
-    "dolar_mep": "1450.34",
-    "dolar_nacion": "1425.00",
-}
+from helpers.escritura_factory import canonical_escritura_payload
 
 
 def _config_payload_from_active(active: dict) -> dict:
@@ -60,12 +54,16 @@ async def test_post_configuracion_creates_new_version(
 async def test_existing_escritura_keeps_original_config_fk(
     auth_client: AsyncClient,
     seeded_config,
+    escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
     before = await auth_client.get("/api/v1/configuracion")
     original_config_id = before.json()["id"]
 
-    created = await auth_client.post("/api/v1/escrituras", json=CANONICAL_PAYLOAD)
+    created = await auth_client.post(
+        "/api/v1/escrituras",
+        json=canonical_escritura_payload(escribano_ids),
+    )
     assert created.status_code == 201
     escritura_id = created.json()["id"]
     cleanup_escrituras.append(escritura_id)
@@ -99,6 +97,7 @@ async def test_config_history_lists_versions_desc(
 async def test_new_escritura_uses_latest_config_after_update(
     auth_client: AsyncClient,
     seeded_config,
+    escribano_ids: dict[str, str],
     cleanup_escrituras: list,
 ) -> None:
     current = await auth_client.get("/api/v1/configuracion")
@@ -110,7 +109,7 @@ async def test_new_escritura_uses_latest_config_after_update(
 
     created = await auth_client.post(
         "/api/v1/escrituras",
-        json={**CANONICAL_PAYLOAD, "usd_value": "10000.00"},
+        json=canonical_escritura_payload(escribano_ids, usd_value="10000.00"),
     )
     assert created.status_code == 201
     cleanup_escrituras.append(created.json()["id"])

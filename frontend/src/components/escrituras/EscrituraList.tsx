@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { EscrituraListItem } from "@/types/api";
-import { formatMoney, labelEscribano, labelEstado } from "@/utils/format";
+import { useEscribanos } from "@/hooks/useEscribanos";
+import { displayEscribanoNombre, formatMoney, labelEstado } from "@/utils/format";
 
 interface EscrituraListProps {
   items: EscrituraListItem[];
@@ -8,6 +9,8 @@ interface EscrituraListProps {
 }
 
 export function EscrituraList({ items, loading }: EscrituraListProps) {
+  const { data: escribanos } = useEscribanos(true);
+
   if (loading) {
     return <p className="page-muted">Cargando escrituras…</p>;
   }
@@ -27,7 +30,9 @@ export function EscrituraList({ items, loading }: EscrituraListProps) {
       {items.map((item) => (
         <Link key={item.id} to={`/escrituras/${item.id}`} className="escritura-list__row">
           <span className="escritura-list__nombre">{item.nombre}</span>
-          <span>{labelEscribano(item.escribano)}</span>
+          <span>
+            {displayEscribanoNombre(item.escribano_id, item.escribano_nombre, escribanos)}
+          </span>
           <span>
             <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
           </span>
