@@ -1,17 +1,23 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock
 import uuid
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.escritura import EstadoEscritura
+from models.gasto_extraordinario import GastoExtraordinario
+from models.impuesto_escritura import DireccionProrrateo, TipoImpuesto
 from models.pago_cliente import PagoCliente
 from models.pago_colegio import PagoColegio
+from schemas.impuesto import ImpuestoInput, PagoImpuestoInput
+from services.impuesto_service import create_impuesto
 from services.libros_service import get_libro_entrada, get_libro_salida
+from services.pago_impuesto_cliente_service import update_pago as update_pago_impuesto_cliente
 from helpers.escritura_factory import insert_test_escritura
 
-TEST_YEAR = 2026
+TEST_YEAR = 2030
 TEST_MONTH = 7
 PAYMENT_DAY = 15
 
@@ -28,6 +34,17 @@ def _payment_date(day: int = PAYMENT_DAY) -> date:
 
 def _prev_month_payment_date(day: int = 12) -> date:
     return date(TEST_YEAR, TEST_MONTH - 1, day)
+
+
+def _impuesto_input(*, tipo: TipoImpuesto = TipoImpuesto.API) -> ImpuestoInput:
+    return ImpuestoInput(
+        tipo=tipo,
+        monto_total=Decimal("10000.00"),
+        periodo_inicio=date(2026, 5, 1),
+        periodo_fin=date(2026, 6, 30),
+        fecha_corte=date(2026, 6, 15),
+        direccion_prorrateo=DireccionProrrateo.HACIA_ATRAS,
+    )
 
 
 async def _insert_pago_cliente(
@@ -68,6 +85,24 @@ async def _insert_pago_colegio(
     session.add(pago)
     await session.commit()
     return pago
+
+
+async def _insert_gasto_extraordinario(
+    session: AsyncSession,
+    *,
+    concepto: str,
+    monto: Decimal,
+    fecha: date,
+) -> GastoExtraordinario:
+    gasto = GastoExtraordinario(
+        id=uuid.uuid4(),
+        concepto=concepto,
+        monto=monto,
+        fecha=fecha,
+    )
+    session.add(gasto)
+    await session.commit()
+    return gasto
 
 
 @pytest.mark.asyncio
@@ -372,3 +407,261 @@ async def test_libro_salida_excludes_pagos_from_previous_month(
 
     assert libro.lineas == []
     assert libro.total == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+async def test_libro_entrada_includes_pago_impuesto_cliente_del_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(
+            session,
+            seeded_config,
+            created_at=_dt(15),
+            nombre="Impuesto Entrada",
+        )
+        cleanup_escrituras.append(escritura.id)
+        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
+        from services.pago_impuesto_cliente_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("7540.98"), fecha=_payment_date(16)),
+        )
+        libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+
+    impuesto_lines = [linea for linea in libro.lineas if linea.origen == "impuesto"]
+    assert len(impuesto_lines) == 1
+    linea = impuesto_lines[0]
+    assert linea.tipo_impuesto == TipoImpuesto.API
+    assert linea.escritura_id == str(escritura.id)
+    assert linea.monto == Decimal("7540.98")
+    assert libro.total == Decimal("7540.98")
+
+
+@pytest.mark.asyncio
+async def test_libro_entrada_excludes_pago_impuesto_cliente_otro_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(16))
+        cleanup_escrituras.append(escritura.id)
+        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
+        from services.pago_impuesto_cliente_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("7540.98"), fecha=_prev_month_payment_date()),
+        )
+        libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+
+    assert all(linea.origen != "impuesto" for linea in libro.lineas)
+
+
+@pytest.mark.asyncio
+async def test_libro_entrada_total_includes_honorarios_e_impuestos(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(17))
+        cleanup_escrituras.append(escritura.id)
+        await _insert_pago_cliente(
+            session,
+            escritura.id,
+            concepto="Honorarios",
+            monto=Decimal("10000.00"),
+            fecha=_payment_date(),
+        )
+        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
+        from services.pago_impuesto_cliente_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("5000.00"), fecha=_payment_date(18)),
+        )
+        libro = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+
+    assert libro.total == Decimal("15000.00")
+    origenes = {linea.origen for linea in libro.lineas}
+    assert origenes == {"honorario", "impuesto"}
+
+
+@pytest.mark.asyncio
+async def test_libro_entrada_impuesto_moves_when_payment_date_changes(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(18))
+        cleanup_escrituras.append(escritura.id)
+        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
+        from services.pago_impuesto_cliente_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("7540.98"), fecha=_payment_date(19)),
+        )
+        julio = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+        assert any(linea.origen == "impuesto" for linea in julio.lineas)
+
+        await update_pago_impuesto_cliente(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("7540.98"), fecha=_prev_month_payment_date(25)),
+        )
+        julio_after = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH)
+        junio = await get_libro_entrada(session, TEST_YEAR, TEST_MONTH - 1)
+
+    assert all(linea.origen != "impuesto" for linea in julio_after.lineas)
+    assert any(linea.origen == "impuesto" for linea in junio.lineas)
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_includes_pago_impuesto_escribania_del_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_escribania_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(19))
+        cleanup_escrituras.append(escritura.id)
+        impuesto = await create_impuesto(
+            session,
+            escritura.id,
+            _impuesto_input(tipo=TipoImpuesto.TGI),
+        )
+        from services.pago_impuesto_escribania_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("2459.02"), fecha=_payment_date(20)),
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    impuesto_lines = [linea for linea in libro.lineas if linea.origen == "impuesto"]
+    assert len(impuesto_lines) == 1
+    assert impuesto_lines[0].tipo_impuesto == TipoImpuesto.TGI
+    assert libro.total == Decimal("2459.02")
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_excludes_pago_impuesto_escribania_otro_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("services.pago_impuesto_escribania_service.publish", AsyncMock())
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(20))
+        cleanup_escrituras.append(escritura.id)
+        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
+        from services.pago_impuesto_escribania_service import upsert_pago
+
+        await upsert_pago(
+            session,
+            escritura.id,
+            impuesto.id,
+            PagoImpuestoInput(monto=Decimal("2459.02"), fecha=_prev_month_payment_date(28)),
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    assert all(linea.origen != "impuesto" for linea in libro.lineas)
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_includes_gasto_extraordinario_del_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        gasto = await _insert_gasto_extraordinario(
+            session,
+            concepto="Celulares",
+            monto=Decimal("150000.00"),
+            fecha=_payment_date(14),
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    extraordinario_lines = [linea for linea in libro.lineas if linea.origen == "extraordinario"]
+    assert len(extraordinario_lines) == 1
+    linea = extraordinario_lines[0]
+    assert linea.concepto == "Celulares"
+    assert linea.monto == Decimal("150000.00")
+    assert linea.escritura_id is None
+    assert linea.escritura_nombre is None
+    assert linea.gasto_extraordinario_id == str(gasto.id)
+    assert libro.total == Decimal("150000.00")
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_excludes_gasto_extraordinario_otro_mes(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        await _insert_gasto_extraordinario(
+            session,
+            concepto="Papeles",
+            monto=Decimal("50000.00"),
+            fecha=_prev_month_payment_date(),
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    assert all(linea.origen != "extraordinario" for linea in libro.lineas)
+    assert libro.total == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_total_includes_colegio_y_gastos_extraordinarios(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(21))
+        cleanup_escrituras.append(escritura.id)
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Colegio",
+            monto=Decimal("25000.00"),
+            fecha=_payment_date(),
+        )
+        await _insert_gasto_extraordinario(
+            session,
+            concepto="Insumos",
+            monto=Decimal("75000.00"),
+            fecha=_payment_date(17),
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    assert libro.total == Decimal("100000.00")
+    origenes = {linea.origen for linea in libro.lineas}
+    assert origenes == {"honorario", "extraordinario"}

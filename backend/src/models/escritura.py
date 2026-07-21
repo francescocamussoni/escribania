@@ -31,8 +31,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 if TYPE_CHECKING:
+    from models.impuesto_escritura import ImpuestoEscritura
     from models.pago_cliente import PagoCliente
     from models.pago_colegio import PagoColegio
+    from models.pago_impuesto_cliente import PagoImpuestoCliente
+    from models.pago_impuesto_escribania import PagoImpuestoEscribania
 
 # Re-export for backward compatibility: existing imports of
 # `from models.escritura import Escribano` still resolve during transition.
@@ -91,3 +94,10 @@ class Escritura(Base):
     factura: Mapped["FacturaPrincipal"] = relationship(back_populates="escritura", uselist=False)  # type: ignore[name-defined]  # noqa: F821
     pagos_cliente: Mapped[list["PagoCliente"]] = relationship(back_populates="escritura")
     pagos_colegio: Mapped[list["PagoColegio"]] = relationship(back_populates="escritura")
+    impuestos: Mapped[list["ImpuestoEscritura"]] = relationship(back_populates="escritura")
+    pagos_impuesto_cliente: Mapped[list["PagoImpuestoCliente"]] = relationship(
+        back_populates="escritura",
+    )
+    pagos_impuesto_escribania: Mapped[list["PagoImpuestoEscribania"]] = relationship(
+        back_populates="escritura",
+    )

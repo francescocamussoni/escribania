@@ -1,0 +1,688 @@
+{
+  "metadata": {
+    "feature": "006-impuestos-escrituras",
+    "branch": "006-impuestos-escrituras",
+    "generated_at": "2026-07-21T00:58:00Z",
+    "source_plan": "specs/006-impuestos-escrituras/plan.md",
+    "source_tasks": "specs/006-impuestos-escrituras/tasks.md",
+    "total_work_units": 26,
+    "estimated_hours": 36,
+    "parity_contract_reference": null,
+    "notes": "Greenfield feature — no legacy tests. TDD tests in backend/tests/ act as acceptance criteria per spec § Testing Strategy. UI sin Figma (reuse 004 patterns)."
+  },
+  "work_units": [
+    {
+      "id": "WU-001",
+      "file_path": "backend/tests/unit/test_impuesto_prorrateo.py",
+      "action": "CREATE",
+      "description": "Tests TDD para prorrateo lineal por días: casos canónicos 46/61 y 15/61, tramos sin solapamiento, validación de corte fuera de período y límites del período",
+      "priority": 1,
+      "estimated_hours": 1.5,
+      "user_stories": ["US2"],
+      "functional_requirements": ["FR-008", "FR-009", "FR-010", "FR-010a", "FR-005"],
+      "success_criteria": ["SC-004"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Test hacia atrás: $10.000, período 01/05–30/06 (61 días), corte 15/06 → monto = 10000 × 46/61",
+        "2. Test hacia adelante: mismo impuesto → monto = 10000 × 15/61 (16/06–30/06 inclusive)",
+        "3. Test complementariedad: atrás + adelante suman monto_total del período",
+        "4. Test fecha de corte fuera del período → excepción de validación",
+        "5. Test corte en primer día: hacia atrás = 1 día; hacia adelante = días restantes",
+        "6. Test corte en último día: hacia adelante = 0 días y monto $0",
+        "7. Test redondeo determinístico a 2 decimales (ROUND_HALF_UP o convención del proyecto)"
+      ],
+      "success_criteria_detail": "Suite falla antes de existir impuesto_prorrateo.py; pasa al implementar WU-002",
+      "dependencies": [],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-002",
+      "file_path": "backend/src/services/impuesto_prorrateo.py",
+      "action": "CREATE",
+      "description": "Módulo puro de prorrateo lineal: calc_dias_tramo, calc_dias_periodo, calc_monto_sugerido, validación fecha corte dentro del período",
+      "priority": 2,
+      "estimated_hours": 1.5,
+      "user_stories": ["US2"],
+      "functional_requirements": ["FR-008", "FR-009", "FR-010", "FR-010a", "FR-005"],
+      "success_criteria": ["SC-004"],
+      "affected_endpoints": [],
+      "legacy_tests": ["backend/tests/unit/test_impuesto_prorrateo.py"],
+      "subtasks": [
+        "1. Implementar calc_dias_periodo(inicio, fin) con días inclusivos",
+        "2. Implementar calc_dias_tramo(inicio, fin, corte, direccion) según FR-009/FR-010",
+        "3. Implementar calc_monto_sugerido(monto_total, ...) = monto_total × (días_tramo / días_período)",
+        "4. Validar fecha_corte dentro de [periodo_inicio, periodo_fin]",
+        "5. Rechazar monto_total ≤ 0 y período inválido (fin < inicio)",
+        "6. Exportar funciones sin dependencias de DB ni FastAPI (P6 formula integrity)"
+      ],
+      "success_criteria_detail": "backend/tests/unit/test_impuesto_prorrateo.py 100% verde",
+      "dependencies": ["WU-001"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-003",
+      "file_path": "backend/tests/unit/test_impuesto_balance.py",
+      "action": "CREATE",
+      "description": "Tests TDD para balance acumulado de impuestos y elegibilidad de cierre de escritura",
+      "priority": 1,
+      "estimated_hours": 1,
+      "user_stories": ["US5"],
+      "functional_requirements": ["FR-023", "FR-025", "FR-025b"],
+      "success_criteria": ["SC-005", "SC-008"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Test calc_balance: Σ pagos cliente − Σ pagos escribanía",
+        "2. Test escritura sin impuestos → balance 0, puede_cerrar true (solo impuestos)",
+        "3. Test balance positivo (cliente > escribanía) → can_close_impuestos false",
+        "4. Test balance negativo → can_close_impuestos false",
+        "5. Test impuesto cargado sin pago cliente → impuestos_pendientes incluye falta_cliente",
+        "6. Test impuesto sin pago escribanía → impuestos_pendientes incluye falta_escribania",
+        "7. Test balance 0 pero impuesto sin ambos pagos → can_close false"
+      ],
+      "success_criteria_detail": "Suite falla antes de impuesto_balance.py",
+      "dependencies": [],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-004",
+      "file_path": "backend/src/services/impuesto_balance.py",
+      "action": "CREATE",
+      "description": "Funciones puras calc_balance, can_close_impuestos, impuestos_pendientes sobre estructuras de pagos",
+      "priority": 2,
+      "estimated_hours": 1,
+      "user_stories": ["US5"],
+      "functional_requirements": ["FR-023", "FR-025", "FR-025b"],
+      "success_criteria": ["SC-005", "SC-008"],
+      "affected_endpoints": [],
+      "legacy_tests": ["backend/tests/unit/test_impuesto_balance.py"],
+      "subtasks": [
+        "1. Implementar calc_balance(pagos_cliente, pagos_escribania) → Decimal",
+        "2. Implementar impuestos_pendientes(impuestos) → lista con tipo y flags falta_cliente/falta_escribania",
+        "3. Implementar can_close_impuestos(balance, pendientes) → bool",
+        "4. Sin impuestos cargados: balance 0 y sin pendientes",
+        "5. Usar Decimal para montos (consistencia con resto del backend)"
+      ],
+      "success_criteria_detail": "backend/tests/unit/test_impuesto_balance.py 100% verde",
+      "dependencies": ["WU-003"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-005",
+      "file_path": "backend/src/services/escritura_errors.py",
+      "action": "MODIFY",
+      "description": "Errores de dominio para cierre bloqueado por impuestos: balance pendiente y pagos incompletos",
+      "priority": 1,
+      "estimated_hours": 0.5,
+      "user_stories": ["US5"],
+      "functional_requirements": ["FR-025", "FR-025b"],
+      "success_criteria": ["SC-005"],
+      "affected_endpoints": ["POST /escrituras/{id}/close"],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Agregar EscrituraImpuestosBalanceError con atributo balance",
+        "2. Agregar EscrituraImpuestosPagosPendientesError con lista impuestos_pendientes",
+        "3. Seguir patrón de EscrituraSaldoPendienteError (003)",
+        "4. Documentar códigos impuestos_balance_pendiente e impuestos_pagos_pendientes"
+      ],
+      "success_criteria_detail": "Excepciones importables desde escritura_service y mapeables a HTTP 409",
+      "dependencies": [],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-006",
+      "file_path": "backend/alembic/versions/007_impuestos_escritura.py",
+      "action": "CREATE",
+      "description": "Migración Alembic: enums tipo_impuesto y direccion_prorrateo, tablas impuestos_escritura y pagos (UNIQUE impuesto_id)",
+      "priority": 3,
+      "estimated_hours": 1.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-002", "FR-003", "FR-004"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": ["backend/tests/integration/test_migration_007_impuestos.py"],
+      "subtasks": [
+        "1. CREATE TYPE tipo_impuesto (6 valores) y direccion_prorrateo",
+        "2. CREATE TABLE impuestos_escritura con FK escritura_id y CHECK monto_total > 0",
+        "3. CREATE TABLE pagos_impuesto_cliente con UNIQUE(impuesto_id)",
+        "4. CREATE TABLE pagos_impuesto_escribania con UNIQUE(impuesto_id)",
+        "5. Índices en escritura_id y fecha en tablas de pagos",
+        "6. down() revierte en orden inverso",
+        "7. revision id 007 (006 ya usado por pagos_cliente)"
+      ],
+      "success_criteria_detail": "alembic upgrade head idempotente",
+      "dependencies": ["WU-002", "WU-004"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-007",
+      "file_path": "backend/tests/integration/test_migration_007_impuestos.py",
+      "action": "CREATE",
+      "description": "Smoke test de migración 007: enums, tablas, constraints UNIQUE y FK",
+      "priority": 3,
+      "estimated_hours": 1,
+      "user_stories": ["US1"],
+      "functional_requirements": [],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Verificar existencia de tablas tras upgrade",
+        "2. Verificar enums tipo_impuesto y direccion_prorrateo",
+        "3. Verificar UNIQUE impuesto_id en ambas tablas de pagos",
+        "4. Verificar FK escritura_id en impuestos_escritura",
+        "5. Verificar downgrade no deja residuos"
+      ],
+      "success_criteria_detail": "Test pasa tras WU-006",
+      "dependencies": ["WU-006"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-008",
+      "file_path": "backend/src/models/impuesto_escritura.py",
+      "action": "CREATE",
+      "description": "Modelo ORM ImpuestoEscritura con enums, período, corte, dirección y relación a escritura",
+      "priority": 4,
+      "estimated_hours": 1,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-002", "FR-003", "FR-004"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Definir clase ImpuestoEscritura con SQLAlchemy 2.0 mapped columns",
+        "2. Mapear enums TipoImpuesto y DireccionProrrateo",
+        "3. Relationship a Escritura (many-to-one) y pagos (one-to-one optional)",
+        "4. Campos created_at, updated_at",
+        "5. Exportar en models/__init__.py"
+      ],
+      "success_criteria_detail": "Modelo importable; metadata refleja migración 007",
+      "dependencies": ["WU-006"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-009",
+      "file_path": "backend/src/models/pago_impuesto_cliente.py",
+      "action": "CREATE",
+      "description": "Modelo ORM PagoImpuestoCliente con UNIQUE impuesto_id y FK escritura_id denormalizado",
+      "priority": 4,
+      "estimated_hours": 0.5,
+      "user_stories": ["US3"],
+      "functional_requirements": ["FR-014"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Definir PagoImpuestoCliente con monto NUMERIC y fecha DATE",
+        "2. UNIQUE constraint en impuesto_id",
+        "3. FK a impuestos_escritura y escrituras",
+        "4. Relationship back_populates con ImpuestoEscritura"
+      ],
+      "success_criteria_detail": "Un solo pago cliente por impuesto a nivel DB",
+      "dependencies": ["WU-006"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-010",
+      "file_path": "backend/src/models/pago_impuesto_escribania.py",
+      "action": "CREATE",
+      "description": "Modelo ORM PagoImpuestoEscribania — estructura espejo de PagoImpuestoCliente",
+      "priority": 4,
+      "estimated_hours": 0.5,
+      "user_stories": ["US4"],
+      "functional_requirements": ["FR-018"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Definir PagoImpuestoEscribania con mismos campos que cliente",
+        "2. UNIQUE impuesto_id",
+        "3. FK y relationships",
+        "4. Exportar en models/__init__.py"
+      ],
+      "success_criteria_detail": "Un solo pago escribanía por impuesto a nivel DB",
+      "dependencies": ["WU-006"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-011",
+      "file_path": "backend/src/models/escritura.py",
+      "action": "MODIFY",
+      "description": "Agregar relaciones ORM impuestos, pagos_impuesto_cliente y pagos_impuesto_escribania",
+      "priority": 5,
+      "estimated_hours": 0.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-003"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Agregar relationship impuestos (cascade según convención del proyecto)",
+        "2. Agregar relationships a pagos impuesto si aplica",
+        "3. Verificar lazy loading coherente con pagos_cliente/colegio"
+      ],
+      "success_criteria_detail": "Escritura carga impuestos en queries existentes sin N+1 excesivo",
+      "dependencies": ["WU-008", "WU-009", "WU-010"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-012",
+      "file_path": "backend/src/schemas/impuesto.py",
+      "action": "CREATE",
+      "description": "Schemas Pydantic: ImpuestoInput/Update/Response, PagoImpuestoInput, BalanceImpuestosResponse según openapi-delta",
+      "priority": 5,
+      "estimated_hours": 1,
+      "user_stories": ["US1", "US2", "US5"],
+      "functional_requirements": ["FR-004", "FR-006", "FR-010b", "FR-024"],
+      "success_criteria": [],
+      "affected_endpoints": [
+        "GET /escrituras/{id}/impuestos",
+        "POST /escrituras/{id}/impuestos",
+        "PATCH /escrituras/{id}/impuestos/{impuesto_id}"
+      ],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. ImpuestoInput con additionalProperties false y validación período/corte",
+        "2. ImpuestoResponse con monto_prorrateado_sugerido y estado_pagos computed",
+        "3. PagoImpuestoInput (monto, fecha)",
+        "4. BalanceImpuestosResponse con impuestos_pendientes y puede_cerrar",
+        "5. Enums TipoImpuesto y DireccionProrrateo alineados con DB"
+      ],
+      "success_criteria_detail": "Schemas validan payloads del openapi-delta.yaml",
+      "dependencies": ["WU-008"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-013",
+      "file_path": "backend/tests/unit/test_impuesto_service.py",
+      "action": "CREATE",
+      "description": "Tests TDD del servicio CRUD de impuestos con prorrateo y guards de escritura abierta",
+      "priority": 6,
+      "estimated_hours": 1.5,
+      "user_stories": ["US1", "US2", "US7"],
+      "functional_requirements": ["FR-006", "FR-007", "FR-027", "FR-028"],
+      "success_criteria": ["SC-001"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Test create impuesto válido retorna monto_prorrateado_sugerido",
+        "2. Test rechazo período inválido, monto ≤ 0, corte fuera de rango",
+        "3. Test escritura cerrada → error",
+        "4. Test update recalcula sugerido",
+        "5. Test delete sin pagos OK; delete con pagos → error",
+        "6. Test list con balance agregado"
+      ],
+      "success_criteria_detail": "Suite falla antes de impuesto_service.py",
+      "dependencies": ["WU-012"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-014",
+      "file_path": "backend/src/services/impuesto_service.py",
+      "action": "CREATE",
+      "description": "Servicio CRUD impuestos: create, list, update, delete con integración impuesto_prorrateo y guards escritura abierta",
+      "priority": 7,
+      "estimated_hours": 2.5,
+      "user_stories": ["US1", "US2", "US7"],
+      "functional_requirements": ["FR-004", "FR-006", "FR-007", "FR-027", "FR-028", "FR-032"],
+      "success_criteria": ["SC-001"],
+      "affected_endpoints": [
+        "GET /escrituras/{id}/impuestos",
+        "POST /escrituras/{id}/impuestos",
+        "PATCH /escrituras/{id}/impuestos/{impuesto_id}",
+        "DELETE /escrituras/{id}/impuestos/{impuesto_id}"
+      ],
+      "legacy_tests": ["backend/tests/unit/test_impuesto_service.py"],
+      "subtasks": [
+        "1. create_impuesto: validar escritura abierta, persistir, calcular sugerido",
+        "2. list_impuestos: incluir pagos nested y balance",
+        "3. update_impuesto: recalcular sugerido; guard cerrada",
+        "4. delete_impuesto: solo sin pagos (FR-028)",
+        "5. Derivar estado_pagos (sin_pagos, solo_cliente, solo_escribania, completos)",
+        "6. Integrar impuesto_balance para totales en list"
+      ],
+      "success_criteria_detail": "test_impuesto_service.py verde; openapi-delta CRUD impuesto cumplido",
+      "dependencies": ["WU-002", "WU-004", "WU-011", "WU-012", "WU-013"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-015",
+      "file_path": "backend/src/services/pago_impuesto_cliente_service.py",
+      "action": "CREATE",
+      "description": "Servicio upsert/update/delete pago cliente por impuesto; no modifica saldo honorarios; emite SSE",
+      "priority": 8,
+      "estimated_hours": 2,
+      "user_stories": ["US3", "US7"],
+      "functional_requirements": ["FR-011", "FR-012", "FR-013", "FR-014", "FR-020", "FR-029", "FR-030"],
+      "success_criteria": ["SC-002", "SC-006"],
+      "affected_endpoints": [
+        "POST /escrituras/{id}/impuestos/{impuesto_id}/pago-cliente",
+        "PATCH /escrituras/{id}/impuestos/{impuesto_id}/pago-cliente",
+        "DELETE /escrituras/{id}/impuestos/{impuesto_id}/pago-cliente"
+      ],
+      "legacy_tests": ["backend/tests/unit/test_pago_impuesto_cliente_service.py"],
+      "subtasks": [
+        "1. upsert_pago: crear o actualizar único registro por impuesto_id",
+        "2. Validar monto > 0 y escritura abierta",
+        "3. update_pago y delete_pago con recálculo de balance",
+        "4. Verificar saldo_pendiente honorarios sin cambios (FR-020)",
+        "5. Publicar SSE impuesto.pago_cliente.changed + libros_updated + liquidacion.updated",
+        "6. Tests unitarios TDD en test_pago_impuesto_cliente_service.py (crear archivo si no existe)"
+      ],
+      "success_criteria_detail": "Un pago por impuesto; edición in-place; SSE publicado",
+      "dependencies": ["WU-014"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-016",
+      "file_path": "backend/src/services/pago_impuesto_escribania_service.py",
+      "action": "CREATE",
+      "description": "Servicio upsert/update/delete pago escribanía por impuesto; emite SSE",
+      "priority": 8,
+      "estimated_hours": 2,
+      "user_stories": ["US4", "US7"],
+      "functional_requirements": ["FR-015", "FR-016", "FR-017", "FR-018", "FR-029", "FR-030"],
+      "success_criteria": ["SC-003", "SC-006"],
+      "affected_endpoints": [
+        "POST /escrituras/{id}/impuestos/{impuesto_id}/pago-escribania",
+        "PATCH /escrituras/{id}/impuestos/{impuesto_id}/pago-escribania",
+        "DELETE /escrituras/{id}/impuestos/{impuesto_id}/pago-escribania"
+      ],
+      "legacy_tests": ["backend/tests/unit/test_pago_impuesto_escribania_service.py"],
+      "subtasks": [
+        "1. upsert/update/delete simétrico a pago_impuesto_cliente_service",
+        "2. Validaciones monto y escritura abierta",
+        "3. Publicar SSE impuesto.pago_escribania.changed",
+        "4. Tests unitarios TDD en test_pago_impuesto_escribania_service.py",
+        "5. Orden de registro cliente/escribanía independiente (FR-019)"
+      ],
+      "success_criteria_detail": "Paridad con servicio cliente; libros salida alimentados",
+      "dependencies": ["WU-014"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-017",
+      "file_path": "backend/src/api/routes/impuestos.py",
+      "action": "CREATE",
+      "description": "Rutas REST anidadas bajo /escrituras/{id}/impuestos y pagos según openapi-delta",
+      "priority": 9,
+      "estimated_hours": 2,
+      "user_stories": ["US1", "US3", "US4", "US7"],
+      "functional_requirements": ["FR-007"],
+      "success_criteria": [],
+      "affected_endpoints": [
+        "GET /escrituras/{id}/impuestos",
+        "POST /escrituras/{id}/impuestos",
+        "PATCH /escrituras/{id}/impuestos/{impuesto_id}",
+        "DELETE /escrituras/{id}/impuestos/{impuesto_id}",
+        "POST/PATCH/DELETE .../pago-cliente",
+        "POST/PATCH/DELETE .../pago-escribania"
+      ],
+      "legacy_tests": ["backend/tests/integration/test_impuestos_api.py"],
+      "subtasks": [
+        "1. GET/POST impuestos con auth cookie",
+        "2. PATCH/DELETE impuesto",
+        "3. Rutas pago-cliente POST/PATCH/DELETE",
+        "4. Rutas pago-escribania POST/PATCH/DELETE",
+        "5. Mapear 409 escritura cerrada y 400 validación",
+        "6. Registrar en router.py (subtarea en WU-017 o archivo separado)"
+      ],
+      "success_criteria_detail": "test_impuestos_api.py verde; contrato openapi-delta",
+      "dependencies": ["WU-014", "WU-015", "WU-016"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-018",
+      "file_path": "backend/tests/integration/test_impuestos_api.py",
+      "action": "CREATE",
+      "description": "Tests de integración API impuestos y pagos: auth, CRUD, 409 cerrada, balance en responses",
+      "priority": 9,
+      "estimated_hours": 2,
+      "user_stories": ["US1", "US3", "US4", "US5", "US7"],
+      "functional_requirements": [],
+      "success_criteria": ["SC-005"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. POST impuesto 201 con sugerido en body",
+        "2. GET list con balance",
+        "3. pago-cliente y pago-escribania ciclo completo",
+        "4. PATCH/DELETE pagos",
+        "5. 409 en escritura cerrada",
+        "6. 401 sin autenticación"
+      ],
+      "success_criteria_detail": "Suite verde con WU-017 registrado en router",
+      "dependencies": ["WU-017"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-019",
+      "file_path": "backend/src/services/libros_service.py",
+      "action": "MODIFY",
+      "description": "Extender libro entrada y salida con líneas de pagos impuesto filtradas por fecha de pago",
+      "priority": 10,
+      "estimated_hours": 2,
+      "user_stories": ["US3", "US4"],
+      "functional_requirements": ["FR-010c", "FR-012", "FR-016", "FR-030"],
+      "success_criteria": ["SC-002", "SC-003"],
+      "affected_endpoints": [
+        "GET /libros/entrada",
+        "GET /libros/salida"
+      ],
+      "legacy_tests": ["backend/tests/unit/test_libros_service.py"],
+      "subtasks": [
+        "1. get_libro_entrada: agregar PagoImpuestoCliente del mes",
+        "2. get_libro_salida: agregar PagoImpuestoEscribania del mes",
+        "3. Campos origen=impuesto y tipo_impuesto en líneas",
+        "4. Editar fecha de pago mueve línea entre meses",
+        "5. Actualizar tests unitarios test_libros_service.py (entrada y salida)"
+      ],
+      "success_criteria_detail": "SC-002 y SC-003: una línea por pago en mes correcto",
+      "dependencies": ["WU-015", "WU-016"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-020",
+      "file_path": "backend/src/schemas/libros.py",
+      "action": "MODIFY",
+      "description": "Extender LibroLineaResponse con origen (honorario|impuesto) y tipo_impuesto",
+      "priority": 10,
+      "estimated_hours": 0.5,
+      "user_stories": ["US3", "US4"],
+      "functional_requirements": ["FR-013", "FR-017"],
+      "success_criteria": [],
+      "affected_endpoints": ["GET /libros/entrada", "GET /libros/salida"],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Agregar campo origen enum",
+        "2. Agregar tipo_impuesto opcional",
+        "3. Mantener compatibilidad con líneas honorarios existentes"
+      ],
+      "success_criteria_detail": "Response serializa líneas impuesto con trazabilidad P8",
+      "dependencies": ["WU-019"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-021",
+      "file_path": "backend/src/services/liquidacion_service.py",
+      "action": "MODIFY",
+      "description": "Calcular neto_impuestos mensual por escritura y escribano; no bloquear cierre mensual por balance escritura",
+      "priority": 11,
+      "estimated_hours": 2.5,
+      "user_stories": ["US6"],
+      "functional_requirements": ["FR-020b", "FR-020c"],
+      "success_criteria": ["SC-009", "SC-010"],
+      "affected_endpoints": ["GET /liquidacion"],
+      "legacy_tests": ["backend/tests/unit/test_liquidacion.py", "backend/tests/unit/test_salario.py"],
+      "subtasks": [
+        "1. Por escritura/mes: neto = Σ pagos impuesto cliente − Σ pagos impuesto escribanía (fecha en mes)",
+        "2. Imputar al escribano asignado",
+        "3. Total escribano incluye monto_cobrado + neto_impuestos",
+        "4. Cierre mensual sin validación balance impuestos escritura",
+        "5. Actualizar test_liquidacion.py y test_salario.py"
+      ],
+      "success_criteria_detail": "SC-009/010 verdes; asimetría mensual reflejada",
+      "dependencies": ["WU-015", "WU-016"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-022",
+      "file_path": "backend/src/schemas/liquidacion.py",
+      "action": "MODIFY",
+      "description": "Agregar neto_impuestos a LiquidacionEscrituraItem",
+      "priority": 11,
+      "estimated_hours": 0.5,
+      "user_stories": ["US6"],
+      "functional_requirements": ["FR-020b"],
+      "success_criteria": ["SC-009"],
+      "affected_endpoints": ["GET /liquidacion"],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Campo neto_impuestos en LiquidacionEscrituraItem",
+        "2. Documentar separación de monto_cobrado honorarios",
+        "3. Actualizar totales en LiquidacionEscribano si aplica"
+      ],
+      "success_criteria_detail": "API liquidación expone neto_impuestos por escritura",
+      "dependencies": ["WU-021"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-023",
+      "file_path": "backend/src/services/escritura_service.py",
+      "action": "MODIFY",
+      "description": "Extender close_escritura con guards balance impuestos y pagos pendientes",
+      "priority": 12,
+      "estimated_hours": 1.5,
+      "user_stories": ["US5"],
+      "functional_requirements": ["FR-025", "FR-025b", "FR-026"],
+      "success_criteria": ["SC-005", "SC-008"],
+      "affected_endpoints": ["POST /escrituras/{id}/close"],
+      "legacy_tests": ["backend/tests/integration/test_escrituras_api.py"],
+      "subtasks": [
+        "1. Antes de cerrar: validar balance_impuestos == 0",
+        "2. Validar todos los impuestos con ambos pagos",
+        "3. Lanzar EscrituraImpuestosBalanceError o EscrituraImpuestosPagosPendientesError",
+        "4. Mantener guard saldo honorarios existente (003)",
+        "5. Exponer balance en GET escritura vía schemas"
+      ],
+      "success_criteria_detail": "Cierre 409 con mensaje claro; SC-005 100%",
+      "dependencies": ["WU-004", "WU-014", "WU-005"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-024",
+      "file_path": "backend/src/schemas/escritura.py",
+      "action": "MODIFY",
+      "description": "Campos de balance impuestos y lista impuestos en response de escritura",
+      "priority": 12,
+      "estimated_hours": 0.5,
+      "user_stories": ["US1", "US5"],
+      "functional_requirements": ["FR-024", "FR-026"],
+      "success_criteria": ["SC-008"],
+      "affected_endpoints": ["GET /escrituras/{id}"],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. total_pagado_impuestos_cliente, total_pagado_impuestos_escribania, balance_impuestos",
+        "2. puede_cerrar_impuestos boolean",
+        "3. impuestos[] nested opcional en detail"
+      ],
+      "success_criteria_detail": "Frontend puede mostrar banner balance sin cálculo local",
+      "dependencies": ["WU-014", "WU-023"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-025",
+      "file_path": "frontend/src/api/impuestos.ts",
+      "action": "CREATE",
+      "description": "Cliente API TypeScript para CRUD impuestos y pagos cliente/escribanía",
+      "priority": 13,
+      "estimated_hours": 1,
+      "user_stories": ["US1", "US3", "US4", "US7"],
+      "functional_requirements": [],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. listImpuestos, createImpuesto, updateImpuesto, deleteImpuesto",
+        "2. upsert/update/delete PagoCliente y PagoEscribania",
+        "3. Tipos alineados con openapi-delta",
+        "4. Manejo errores 409/400"
+      ],
+      "success_criteria_detail": "API client compila; funciones usables desde hooks",
+      "dependencies": ["WU-017"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-026",
+      "file_path": "frontend/src/pages/EscrituraDetail.tsx",
+      "action": "MODIFY",
+      "description": "Sección Impuestos debajo de pagos, banner balance, cierre condicionado, layout responsive US8",
+      "priority": 14,
+      "estimated_hours": 3,
+      "user_stories": ["US1", "US5", "US8"],
+      "functional_requirements": ["FR-001", "FR-024", "FR-025"],
+      "success_criteria": ["SC-001", "SC-007"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "figma": "N/A — reuse feature 004 layout patterns (spec § Assumptions)",
+      "subtasks": [
+        "1. Insertar sección Impuestos bajo Pagos cliente y Pagos escribanía (columna derecha)",
+        "2. Banner balance: total cliente, total escribanía, diferencia",
+        "3. Integrar ImpuestoForm, ImpuestoList y formularios de pago",
+        "4. Deshabilitar cerrar si !puede_cerrar_impuestos; mensajes 409",
+        "5. Stack responsive: orden correcto en viewport estrecho (US8)",
+        "6. Solo lectura si escritura cerrada"
+      ],
+      "success_criteria_detail": "SC-001 ≤3s; SC-007 orden correcto desktop y móvil",
+      "dependencies": ["WU-025"],
+      "parallel_safe": false
+    }
+  ],
+  "execution_phases": [
+    {
+      "phase": 1,
+      "name": "Lógica pura TDD",
+      "parallel_units": ["WU-001", "WU-003", "WU-005"],
+      "sequential_units": ["WU-002", "WU-004"]
+    },
+    {
+      "phase": 2,
+      "name": "Persistencia",
+      "parallel_units": ["WU-008", "WU-009", "WU-010"],
+      "sequential_units": ["WU-006", "WU-007", "WU-011", "WU-012"]
+    },
+    {
+      "phase": 3,
+      "name": "Servicios y API",
+      "parallel_units": ["WU-016"],
+      "sequential_units": ["WU-013", "WU-014", "WU-015", "WU-017", "WU-018"]
+    },
+    {
+      "phase": 4,
+      "name": "Libros, liquidación y cierre",
+      "parallel_units": ["WU-021", "WU-022"],
+      "sequential_units": ["WU-019", "WU-020", "WU-023", "WU-024"]
+    },
+    {
+      "phase": 5,
+      "name": "Frontend detalle escritura",
+      "parallel_units": [],
+      "sequential_units": ["WU-025", "WU-026"],
+      "notes": "Componentes ImpuestoForm/List/Pago* y hooks useImpuestos se implementan como subtareas de WU-026 o WUs adicionales en /implement"
+    }
+  ],
+  "statistics": {
+    "create": 18,
+    "modify": 8,
+    "delete": 0,
+    "with_legacy_tests": 12,
+    "without_legacy_tests": 14,
+    "parallel_safe": 8,
+    "warnings": [
+      "14 WUs sin legacy_tests — feature greenfield; TDD tests listados en legacy_tests donde aplica",
+      "WU-026 agrupa integración UI; componentes hijos (ImpuestoForm.tsx, etc.) pueden dividirse en implement",
+      "itti-tasks-shape.sh no presente en repo — JSON generado manualmente desde plan jerárquico"
+    ]
+  }
+}

@@ -10,8 +10,11 @@ function invalidateForEvent(
   eventType: SseEventType,
   data: Record<string, string>,
 ): void {
+  const gastoExtraordinarioRelated = eventType.startsWith("gasto_extraordinario.");
+
   const escrituraRelated =
     eventType.startsWith("escritura.") ||
+    eventType.startsWith("impuesto.") ||
     eventType === "gasto.created" ||
     eventType === "pago_cliente.created" ||
     eventType === "pago_colegio.created";
@@ -21,13 +24,16 @@ function invalidateForEvent(
     const escrituraId = data.escritura_id;
     if (escrituraId) {
       void queryClient.invalidateQueries({ queryKey: ["escritura", escrituraId] });
+      void queryClient.invalidateQueries({ queryKey: ["impuestos", escrituraId] });
     }
   }
   if (
     eventType === "liquidacion.updated" ||
     eventType.startsWith("escritura.") ||
+    eventType.startsWith("impuesto.") ||
     eventType === "gasto.created" ||
-    eventType === "pago_cliente.created"
+    eventType === "pago_cliente.created" ||
+    gastoExtraordinarioRelated
   ) {
     void queryClient.invalidateQueries({ queryKey: ["liquidacion"] });
     void queryClient.invalidateQueries({ queryKey: ["salarios"] });
@@ -35,11 +41,16 @@ function invalidateForEvent(
   if (
     eventType === "libros_updated" ||
     eventType.startsWith("escritura.") ||
+    eventType.startsWith("impuesto.") ||
     eventType === "gasto.created" ||
     eventType === "pago_cliente.created" ||
-    eventType === "pago_colegio.created"
+    eventType === "pago_colegio.created" ||
+    gastoExtraordinarioRelated
   ) {
     void queryClient.invalidateQueries({ queryKey: ["libros"] });
+  }
+  if (gastoExtraordinarioRelated) {
+    void queryClient.invalidateQueries({ queryKey: ["gastos-extraordinarios"] });
   }
 }
 
@@ -76,6 +87,13 @@ export function useSSE(enabled = true): void {
         "gasto.created",
         "pago_cliente.created",
         "pago_colegio.created",
+        "impuesto.pago_cliente.changed",
+        "impuesto.pago_escribania.changed",
+        "impuesto.updated",
+        "impuesto.deleted",
+        "gasto_extraordinario.created",
+        "gasto_extraordinario.updated",
+        "gasto_extraordinario.deleted",
         "liquidacion.updated",
         "libros_updated",
       ];

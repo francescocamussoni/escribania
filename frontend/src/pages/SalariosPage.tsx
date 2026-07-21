@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PagoEscribanoCard } from "@/components/salarios/PagoEscribanoCard";
 import { PagoSecretariaCard } from "@/components/salarios/PagoSecretariaCard";
 import { useSalarios } from "@/hooks/useSalarios";
-import { formatMonthYear, getDefaultPeriod, MONTH_NAMES } from "@/utils/format";
+import { formatMonthYear, formatMoney, getDefaultPeriod, MONTH_NAMES } from "@/utils/format";
 
 const YEAR_RANGE = 3;
 
@@ -52,6 +52,18 @@ export function SalariosPage() {
       </header>
 
       <p className="period-label">{formatMonthYear(anio, mes)}</p>
+
+      {data?.advertencia_reparto ? (
+        <p className="form-error salarios-page__advertencia" role="alert">
+          {data.advertencia_reparto}
+        </p>
+      ) : null}
+      {data && Number.parseFloat(data.total_gastos_extraordinarios) > 0 ? (
+        <p className="salarios-page__gastos-total page-muted">
+          Total gastos extraordinarios del mes:{" "}
+          <strong>{formatMoney(data.total_gastos_extraordinarios)}</strong>
+        </p>
+      ) : null}
 
       {error ? <p className="form-error">No se pudieron cargar los salarios.</p> : null}
       {isLoading ? <p className="page-muted">Cargando salarios…</p> : null}

@@ -2,27 +2,57 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EscrituraForm } from "@/components/escrituras/EscrituraForm";
 import { FacturaDetalle } from "@/components/escrituras/FacturaDetalle";
+import { ImpuestoForm } from "@/components/escrituras/ImpuestoForm";
+import { ImpuestoList } from "@/components/escrituras/ImpuestoList";
+import { ImpuestosBalanceBanner } from "@/components/escrituras/ImpuestosBalanceBanner";
 import { PagoClienteForm } from "@/components/escrituras/PagoClienteForm";
 import { PagoClienteList } from "@/components/escrituras/PagoClienteList";
 import { PagoColegioForm } from "@/components/escrituras/PagoColegioForm";
 import { PagoColegioList } from "@/components/escrituras/PagoColegioList";
 import { useCloseEscritura, useEscritura, usePatchEscritura } from "@/hooks/useEscrituras";
+import { useCreateImpuesto, useImpuestos } from "@/hooks/useImpuestos";
 import { useCreatePagoCliente } from "@/hooks/usePagosCliente";
 import { useCreatePagoColegio } from "@/hooks/usePagosColegio";
 import { useEscribanos } from "@/hooks/useEscribanos";
-import { closeEscrituraSaldoMessage, friendlyApiError } from "@/utils/errors";
+import type { BalanceImpuestosResponse } from "@/types/api";
+import {
+  closeEscrituraImpuestosMessage,
+  closeEscrituraSaldoMessage,
+  friendlyApiError,
+} from "@/utils/errors";
 import { formatDate, formatMoney, formatCobroPercent, displayEscribanoNombre, labelEstado } from "@/utils/format";
+import { labelTipoImpuesto } from "@/utils/impuesto";
 
 function hasSaldoPendiente(saldo: string): boolean {
   const value = Number(saldo);
   return !Number.isNaN(value) && value > 0;
 }
 
+function buildCloseTooltip(
+  saldoPendiente: boolean,
+  saldo: string,
+  balance: BalanceImpuestosResponse | null | undefined,
+): string | undefined {
+  if (saldoPendiente) {
+    return `Saldo pendiente de cobro: ${formatMoney(saldo)}`;
+  }
+  if (!balance || balance.puede_cerrar) {
+    return undefined;
+  }
+  if (balance.impuestos_pendientes.length > 0) {
+    const tipos = balance.impuestos_pendientes.map((item) => labelTipoImpuesto(item.tipo)).join(", ");
+    return `Impuestos con pagos incompletos: ${tipos}`;
+  }
+  return `Balance de impuestos: ${formatMoney(balance.balance)}`;
+}
+
 export function EscrituraDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: escritura, isLoading, error } = useEscritura(id);
+  const { data: impuestosData, isLoading: impuestosLoading } = useImpuestos(id ?? "");
   const patchMutation = usePatchEscritura(id ?? "");
   const closeMutation = useCloseEscritura(id ?? "");
+  const createImpuestoMutation = useCreateImpuesto(id ?? "");
   const pagoClienteMutation = useCreatePagoCliente(id ?? "");
   const pagoColegioMutation = useCreatePagoColegio(id ?? "");
   const [closeError, setCloseError] = useState<string | null>(null);
@@ -46,11 +76,11 @@ export function EscrituraDetail() {
 
   const isClosed = escritura.estado === "cerrada";
   const saldoPendiente = hasSaldoPendiente(escritura.saldo_pendiente);
+  const balanceImpuestos = impuestosData?.balance ?? escritura.balance_impuestos ?? null;
+  const impuestosBlockClose = balanceImpuestos ? !balanceImpuestos.puede_cerrar : false;
   const cobroPercent = formatCobroPercent(escritura.total_pagado, escritura.costo_total);
-  const closeDisabled = closeMutation.isPending || saldoPendiente;
-  const closeTooltip = saldoPendiente
-    ? `Saldo pendiente de cobro: ${formatMoney(escritura.saldo_pendiente)}`
-    : undefined;
+  const closeDisabled = closeMutation.isPending || saldoPendiente || impuestosBlockClose;
+  const closeTooltip = buildCloseTooltip(saldoPendiente, escritura.saldo_pendiente, balanceImpuestos);
 
   const handleClose = async () => {
     const confirmed = window.confirm(
@@ -66,6 +96,7 @@ export function EscrituraDetail() {
     } catch (err) {
       setCloseError(
         closeEscrituraSaldoMessage(err) ??
+          closeEscrituraImpuestosMessage(err) ??
           friendlyApiError(err, "No se pudo cerrar la escritura."),
       );
     }
@@ -183,6 +214,27 @@ export function EscrituraDetail() {
               <PagoColegioForm
                 onSubmit={async (payload) => {
                   await pagoColegioMutation.mutateAsync(payload);
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="detail-card escritura-detail__impuestos">
+            <h2>Impuestos</h2>
+            <ImpuestosBalanceBanner balance={balanceImpuestos} />
+            {impuestosLoading ? (
+              <p className="page-muted">Cargando impuestos…</p>
+            ) : (
+              <ImpuestoList
+                escrituraId={id}
+                impuestos={impuestosData?.impuestos ?? []}
+                readOnly={isClosed}
+              />
+            )}
+            {!isClosed ? (
+              <ImpuestoForm
+                onSubmit={async (payload) => {
+                  await createImpuestoMutation.mutateAsync(payload);
                 }}
               />
             ) : null}

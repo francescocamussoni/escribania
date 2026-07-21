@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 
 from models.escritura import Escritura
 from models.pago_cliente import PagoCliente
+from models.pago_impuesto_cliente import PagoImpuestoCliente
+from models.pago_impuesto_escribania import PagoImpuestoEscribania
 from schemas.liquidacion import (
     LiquidacionEscrituraItem,
     LiquidacionEscribano,
@@ -17,6 +19,7 @@ from schemas.liquidacion import (
 from services.escribano_service import list_active
 
 _ZERO = Decimal("0.00")
+_QUANT = Decimal("0.01")
 _LEGACY_TOTAL_FIELDS = {
     "costanza": "total_costanza",
     "gabriel": "total_gabriel",
@@ -37,6 +40,35 @@ def _legacy_total_key(nombre: str) -> str | None:
     return _LEGACY_TOTAL_FIELDS.get(nombre.strip().lower())
 
 
+def _money(value: Decimal) -> Decimal:
+    return value.quantize(_QUANT)
+
+
+class _EscrituraMonthTotals:
+    __slots__ = ("escritura", "monto_cobrado", "neto_cliente", "neto_escribania")
+
+    def __init__(self, escritura: Escritura) -> None:
+        self.escritura = escritura
+        self.monto_cobrado = _ZERO
+        self.neto_cliente = _ZERO
+        self.neto_escribania = _ZERO
+
+    def has_activity(self) -> bool:
+        return (
+            self.monto_cobrado != _ZERO
+            or self.neto_cliente != _ZERO
+            or self.neto_escribania != _ZERO
+        )
+
+    @property
+    def neto_impuestos(self) -> Decimal:
+        return _money(self.neto_cliente - self.neto_escribania)
+
+    @property
+    def total_liquidacion(self) -> Decimal:
+        return _money(self.monto_cobrado + self.neto_impuestos)
+
+
 async def fetch_liquidacion_items_for_month(
     session: AsyncSession,
     anio: int,
@@ -55,23 +87,52 @@ async def _group_items_by_escribano(
     mes: int,
 ) -> tuple[dict[str, list[LiquidacionEscrituraItem]], dict[str, Decimal], dict[str, str]]:
     start, end = month_bounds(anio, mes)
-    stmt = (
+    pagos_cliente_stmt = (
         select(PagoCliente)
         .join(Escritura)
         .options(selectinload(PagoCliente.escritura))
         .where(PagoCliente.fecha >= start, PagoCliente.fecha < end)
         .order_by(PagoCliente.fecha, PagoCliente.created_at)
     )
-    pagos = list((await session.execute(stmt)).scalars().all())
+    pagos_impuesto_cliente_stmt = (
+        select(PagoImpuestoCliente)
+        .join(Escritura)
+        .options(selectinload(PagoImpuestoCliente.escritura))
+        .where(PagoImpuestoCliente.fecha >= start, PagoImpuestoCliente.fecha < end)
+    )
+    pagos_impuesto_escribania_stmt = (
+        select(PagoImpuestoEscribania)
+        .join(Escritura)
+        .options(selectinload(PagoImpuestoEscribania.escritura))
+        .where(PagoImpuestoEscribania.fecha >= start, PagoImpuestoEscribania.fecha < end)
+    )
+    pagos_cliente = list((await session.execute(pagos_cliente_stmt)).scalars().all())
+    pagos_impuesto_cliente = list(
+        (await session.execute(pagos_impuesto_cliente_stmt)).scalars().all()
+    )
+    pagos_impuesto_escribania = list(
+        (await session.execute(pagos_impuesto_escribania_stmt)).scalars().all()
+    )
 
-    escritura_totals: dict[str, tuple[Escritura, Decimal]] = {}
-    for pago in pagos:
-        escritura = pago.escritura
+    escritura_totals: dict[str, _EscrituraMonthTotals] = {}
+
+    def _ensure(escritura: Escritura) -> _EscrituraMonthTotals:
         key = str(escritura.id)
         if key not in escritura_totals:
-            escritura_totals[key] = (escritura, _ZERO)
-        escritura, total = escritura_totals[key]
-        escritura_totals[key] = (escritura, total + pago.monto)
+            escritura_totals[key] = _EscrituraMonthTotals(escritura)
+        return escritura_totals[key]
+
+    for pago in pagos_cliente:
+        row = _ensure(pago.escritura)
+        row.monto_cobrado += pago.monto
+
+    for pago in pagos_impuesto_cliente:
+        row = _ensure(pago.escritura)
+        row.neto_cliente += pago.monto
+
+    for pago in pagos_impuesto_escribania:
+        row = _ensure(pago.escritura)
+        row.neto_escribania += pago.monto
 
     active_escribanos = await list_active(session)
     grouped: dict[str, list[LiquidacionEscrituraItem]] = {
@@ -82,23 +143,26 @@ async def _group_items_by_escribano(
         str(escribano.id): escribano.nombre for escribano in active_escribanos
     }
 
-    for escritura, monto in sorted(
+    for row in sorted(
         escritura_totals.values(),
-        key=lambda pair: pair[0].nombre.lower(),
+        key=lambda item: item.escritura.nombre.lower(),
     ):
+        if not row.has_activity():
+            continue
         item = LiquidacionEscrituraItem(
-            escritura_id=str(escritura.id),
-            nombre=escritura.nombre,
-            estado=escritura.estado,
-            monto_cobrado=monto.quantize(Decimal("0.01")),
+            escritura_id=str(row.escritura.id),
+            nombre=row.escritura.nombre,
+            estado=row.escritura.estado,
+            monto_cobrado=_money(row.monto_cobrado),
+            neto_impuestos=row.neto_impuestos,
         )
-        key = str(escritura.escribano_id)
+        key = str(row.escritura.escribano_id)
         if key not in grouped:
             grouped[key] = []
             totals[key] = _ZERO
-            escribano_names[key] = escritura.escribano_nombre
+            escribano_names[key] = row.escritura.escribano_nombre
         grouped[key].append(item)
-        totals[key] += item.monto_cobrado
+        totals[key] += row.total_liquidacion
 
     return grouped, totals, escribano_names
 

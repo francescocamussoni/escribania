@@ -11,6 +11,13 @@ export type SseEventType =
   | "gasto.created"
   | "pago_cliente.created"
   | "pago_colegio.created"
+  | "impuesto.pago_cliente.changed"
+  | "impuesto.pago_escribania.changed"
+  | "impuesto.updated"
+  | "impuesto.deleted"
+  | "gasto_extraordinario.created"
+  | "gasto_extraordinario.updated"
+  | "gasto_extraordinario.deleted"
   | "liquidacion.updated"
   | "libros_updated";
 
@@ -149,6 +156,7 @@ export interface EscrituraResponse {
   pagada_al_100: boolean;
   sobrepago: boolean;
   total_leyes_notariales_proyectadas: string;
+  balance_impuestos: BalanceImpuestosResponse | null;
   pagos_cliente: PagoClienteResponse[];
   pagos_colegio: PagoColegioResponse[];
 }
@@ -173,6 +181,7 @@ export interface LiquidacionEscrituraItem {
   nombre: string;
   estado: EstadoEscritura;
   monto_cobrado: string;
+  neto_impuestos: string;
 }
 
 export interface LiquidacionEscribano {
@@ -195,6 +204,8 @@ export interface LiquidacionResumen {
 export interface PagoEscribano {
   nombre: string;
   monto_total: string;
+  deduccion_gastos_extraordinarios: string;
+  monto_neto: string;
   escrituras: LiquidacionEscrituraItem[];
 }
 
@@ -209,6 +220,36 @@ export interface PagoSalariosResumen {
   mes: number;
   escribanos: PagoEscribano[];
   secretarias: PagoSecretaria[];
+  total_gastos_extraordinarios: string;
+  advertencia_reparto: string | null;
+}
+
+export interface GastoExtraordinarioInput {
+  concepto: string;
+  monto: string;
+  fecha: string;
+}
+
+export interface GastoExtraordinarioUpdate {
+  concepto?: string;
+  monto?: string;
+  fecha?: string;
+}
+
+export interface GastoExtraordinarioResponse {
+  id: string;
+  concepto: string;
+  monto: string;
+  fecha: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GastosExtraordinariosListResponse {
+  anio: number;
+  mes: number;
+  gastos: GastoExtraordinarioResponse[];
+  total: string;
 }
 
 export interface ConfiguracionInput {
@@ -284,12 +325,17 @@ export interface EmpleadoResponse {
   updated_at: string;
 }
 
+export type LibroOrigen = "honorario" | "impuesto" | "extraordinario";
+
 export interface LibroLineaResponse {
-  escritura_id: string;
-  escritura_nombre: string;
+  escritura_id: string | null;
+  escritura_nombre: string | null;
   concepto: string;
   monto: string;
   fecha_pago: string;
+  origen?: LibroOrigen;
+  tipo_impuesto?: TipoImpuesto | null;
+  gasto_extraordinario_id?: string | null;
 }
 
 export interface DeudaResumenItem {
@@ -309,6 +355,90 @@ export interface LibroSalidaResponse {
 
 export interface LibroEntradaResponse extends LibroSalidaResponse {
   resumen_deudas: DeudaResumenItem[];
+}
+
+export type TipoImpuesto =
+  | "API"
+  | "TGI"
+  | "AGUAS_SANTAFESINAS"
+  | "EPE"
+  | "EXPENSAS"
+  | "LITORAL_GAS";
+
+export type DireccionProrrateo = "hacia_atras" | "hacia_adelante";
+
+export type EstadoPagos = "sin_pagos" | "solo_cliente" | "solo_escribania" | "completos";
+
+export interface ImpuestoInput {
+  tipo: TipoImpuesto;
+  monto_total: string;
+  periodo_inicio: string;
+  periodo_fin: string;
+  fecha_corte: string;
+  direccion_prorrateo: DireccionProrrateo;
+}
+
+export interface ImpuestoUpdate {
+  tipo?: TipoImpuesto;
+  monto_total?: string;
+  periodo_inicio?: string;
+  periodo_fin?: string;
+  fecha_corte?: string;
+  direccion_prorrateo?: DireccionProrrateo;
+}
+
+export interface PagoImpuestoInput {
+  monto: string;
+  fecha: string;
+}
+
+export interface PagoImpuestoClienteResponse {
+  id: string;
+  impuesto_id: string;
+  escritura_id: string;
+  monto: string;
+  fecha: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PagoImpuestoEscribaniaResponse = PagoImpuestoClienteResponse;
+
+export interface ImpuestoResponse {
+  id: string;
+  escritura_id: string;
+  tipo: TipoImpuesto;
+  monto_total: string;
+  periodo_inicio: string;
+  periodo_fin: string;
+  fecha_corte: string;
+  direccion_prorrateo: DireccionProrrateo;
+  monto_prorrateado_sugerido: string;
+  estado_pagos: EstadoPagos;
+  pago_cliente: PagoImpuestoClienteResponse | null;
+  pago_escribania: PagoImpuestoEscribaniaResponse | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImpuestoPendienteItem {
+  impuesto_id: string;
+  tipo: TipoImpuesto;
+  falta_cliente: boolean;
+  falta_escribania: boolean;
+}
+
+export interface BalanceImpuestosResponse {
+  total_cliente: string;
+  total_escribania: string;
+  balance: string;
+  impuestos_pendientes: ImpuestoPendienteItem[];
+  puede_cerrar: boolean;
+}
+
+export interface ImpuestosListResponse {
+  impuestos: ImpuestoResponse[];
+  balance: BalanceImpuestosResponse;
 }
 
 /** @deprecated Use LibroSalidaResponse or LibroEntradaResponse */

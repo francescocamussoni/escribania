@@ -4,6 +4,7 @@ import { ApiRequestError } from "@/api/client";
 
 const links = [
   { to: "/escrituras", label: "Escrituras" },
+  { to: "/gastos-extraordinarios", label: "Gastos Extraordinarios" },
   { to: "/liquidacion", label: "Liquidación" },
   { to: "/salarios", label: "Pago de Salarios" },
   { to: "/libro-entrada", label: "Libro de Entrada" },

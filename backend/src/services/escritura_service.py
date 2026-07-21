@@ -18,9 +18,12 @@ from events.publisher import publish
 from services.calculo_factura import ConfigCalculo, calcular_factura_completa
 from services.escritura_errors import (
     EscrituraClosedError,
+    EscrituraImpuestosBalanceError,
+    EscrituraImpuestosPagosPendientesError,
     EscrituraNotFoundError,
     EscrituraSaldoPendienteError,
 )
+from services.impuesto_service import get_balance_impuestos
 from services.pago_saldo import calc_saldo, can_close, is_sobrepago
 
 FACTURA_CALC_FIELDS = (
@@ -289,6 +292,24 @@ async def close_escritura(session: AsyncSession, escritura_id: uuid.UUID) -> Esc
     assert isinstance(saldo_pendiente, Decimal)
     if not can_close(saldo_pendiente):
         raise EscrituraSaldoPendienteError(saldo_pendiente)
+
+    balance_impuestos = await get_balance_impuestos(session, escritura_id)
+    if balance_impuestos.impuestos_pendientes:
+        pendientes_raw = [
+            {
+                "impuesto_id": item.impuesto_id,
+                "tipo": item.tipo.value,
+                "falta_cliente": item.falta_cliente,
+                "falta_escribania": item.falta_escribania,
+            }
+            for item in balance_impuestos.impuestos_pendientes
+        ]
+        raise EscrituraImpuestosPagosPendientesError(pendientes_raw)
+
+    balance = balance_impuestos.balance
+    assert isinstance(balance, Decimal)
+    if balance != _ZERO:
+        raise EscrituraImpuestosBalanceError(balance)
 
     escritura.estado = EstadoEscritura.CERRADA
     escritura.closed_at = datetime.now(UTC)

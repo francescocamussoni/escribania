@@ -12,6 +12,27 @@ export function formatMoney(value: string): string {
   }).format(amount);
 }
 
+/** Signed currency for neto impuestos (cliente − escribanía). */
+export function formatSignedMoney(value: string): string {
+  const amount = Number(value);
+  if (Number.isNaN(amount)) {
+    return value;
+  }
+  const formatted = formatMoney(value);
+  if (amount > 0) {
+    return `+${formatted}`;
+  }
+  return formatted;
+}
+
+export function signedMoneyClass(value: string, positiveClass: string, negativeClass: string): string | undefined {
+  const amount = Number(value);
+  if (Number.isNaN(amount) || amount === 0) {
+    return undefined;
+  }
+  return amount > 0 ? positiveClass : negativeClass;
+}
+
 /** Integer percent of costo_total collected; null when costo_total is zero or invalid. */
 export function formatCobroPercent(totalPagado: string, costoTotal: string): number | null {
   const pagado = Number(totalPagado);

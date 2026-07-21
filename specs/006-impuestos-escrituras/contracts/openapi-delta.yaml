@@ -1,0 +1,461 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Delta (feature 006-impuestos-escrituras)
+  description: |
+    New endpoints and schema extensions for impuestos per escritura:
+    prorrateo lineal, pagos cliente/escribanía, balance de cierre,
+    impacto en libros y liquidación mensual.
+  version: 0.6.0
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+
+    TipoImpuesto:
+      type: string
+      enum:
+        - API
+        - TGI
+        - AGUAS_SANTAFESINAS
+        - EPE
+        - EXPENSAS
+        - LITORAL_GAS
+
+    DireccionProrrateo:
+      type: string
+      enum: [hacia_atras, hacia_adelante]
+
+    ImpuestoInput:
+      type: object
+      required:
+        - tipo
+        - monto_total
+        - periodo_inicio
+        - periodo_fin
+        - fecha_corte
+        - direccion_prorrateo
+      additionalProperties: false
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoImpuesto'
+        monto_total:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "10000.00"
+        periodo_inicio:
+          type: string
+          format: date
+        periodo_fin:
+          type: string
+          format: date
+        fecha_corte:
+          type: string
+          format: date
+        direccion_prorrateo:
+          $ref: '#/components/schemas/DireccionProrrateo'
+
+    ImpuestoUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoImpuesto'
+        monto_total:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        periodo_inicio:
+          type: string
+          format: date
+        periodo_fin:
+          type: string
+          format: date
+        fecha_corte:
+          type: string
+          format: date
+        direccion_prorrateo:
+          $ref: '#/components/schemas/DireccionProrrateo'
+
+    PagoImpuestoInput:
+      type: object
+      required: [monto, fecha]
+      additionalProperties: false
+      properties:
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        fecha:
+          type: string
+          format: date
+
+    PagoImpuestoClienteResponse:
+      type: object
+      required: [id, impuesto_id, escritura_id, monto, fecha, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        impuesto_id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+        fecha:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PagoImpuestoEscribaniaResponse:
+      allOf:
+        - $ref: '#/components/schemas/PagoImpuestoClienteResponse'
+
+    ImpuestoResponse:
+      type: object
+      required:
+        - id
+        - escritura_id
+        - tipo
+        - monto_total
+        - periodo_inicio
+        - periodo_fin
+        - fecha_corte
+        - direccion_prorrateo
+        - monto_prorrateado_sugerido
+        - estado_pagos
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        tipo:
+          $ref: '#/components/schemas/TipoImpuesto'
+        monto_total:
+          type: string
+        periodo_inicio:
+          type: string
+          format: date
+        periodo_fin:
+          type: string
+          format: date
+        fecha_corte:
+          type: string
+          format: date
+        direccion_prorrateo:
+          $ref: '#/components/schemas/DireccionProrrateo'
+        monto_prorrateado_sugerido:
+          type: string
+        estado_pagos:
+          type: string
+          enum: [sin_pagos, solo_cliente, solo_escribania, completos]
+        pago_cliente:
+          $ref: '#/components/schemas/PagoImpuestoClienteResponse'
+        pago_escribania:
+          $ref: '#/components/schemas/PagoImpuestoEscribaniaResponse'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BalanceImpuestosResponse:
+      type: object
+      required:
+        - total_cliente
+        - total_escribania
+        - balance
+        - puede_cerrar
+      properties:
+        total_cliente:
+          type: string
+        total_escribania:
+          type: string
+        balance:
+          type: string
+        impuestos_pendientes:
+          type: array
+          items:
+            type: object
+            properties:
+              impuesto_id:
+                type: string
+                format: uuid
+              tipo:
+                $ref: '#/components/schemas/TipoImpuesto'
+              falta_cliente:
+                type: boolean
+              falta_escribania:
+                type: boolean
+        puede_cerrar:
+          type: boolean
+
+    EscrituraImpuestosBalanceError:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            code:
+              type: string
+              example: impuestos_balance_pendiente
+            balance:
+              type: string
+
+    LiquidacionEscrituraItemExtended:
+      type: object
+      description: Extends 003 item with neto_impuestos
+      properties:
+        neto_impuestos:
+          type: string
+          description: SUM pagos impuesto cliente mes - SUM pagos impuesto escribanía mes
+
+    LibroLineaImpuestoExtended:
+      type: object
+      properties:
+        origen:
+          type: string
+          enum: [honorario, impuesto]
+        tipo_impuesto:
+          $ref: '#/components/schemas/TipoImpuesto'
+
+paths:
+
+  /escrituras/{escritura_id}/impuestos:
+    get:
+      summary: List impuestos for escritura
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Impuestos list with balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  impuestos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ImpuestoResponse'
+                  balance:
+                    $ref: '#/components/schemas/BalanceImpuestosResponse'
+    post:
+      summary: Create impuesto
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImpuestoInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpuestoResponse'
+        '400': { description: Validation error }
+        '409': { description: Escritura cerrada }
+
+  /escrituras/{escritura_id}/impuestos/{impuesto_id}:
+    patch:
+      summary: Update impuesto (escritura abierta, editable)
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImpuestoUpdate'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpuestoResponse'
+    delete:
+      summary: Delete impuesto without payments
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+        '409': { description: Has payments or escritura cerrada }
+
+  /escrituras/{escritura_id}/impuestos/{impuesto_id}/pago-cliente:
+    post:
+      summary: Register or replace client payment for impuesto
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoImpuestoInput'
+      responses:
+        '201': { description: Created }
+        '200': { description: Updated existing payment }
+    patch:
+      summary: Update client payment
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoImpuestoInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoImpuestoClienteResponse'
+    delete:
+      summary: Remove client payment
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+
+  /escrituras/{escritura_id}/impuestos/{impuesto_id}/pago-escribania:
+    post:
+      summary: Register escribanía payment for impuesto service
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoImpuestoInput'
+      responses:
+        '201': { description: Created }
+    patch:
+      summary: Update escribanía payment
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoImpuestoInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoImpuestoEscribaniaResponse'
+    delete:
+      summary: Remove escribanía payment
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - name: escritura_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: impuesto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Deleted }
+
+  /escrituras/{escritura_id}/close:
+    post:
+      summary: Close escritura (extended guards)
+      description: |
+        Existing honorarios saldo check plus:
+        - balance_impuestos must be 0
+        - all impuestos must have both payments
+      responses:
+        '409':
+          description: Cannot close
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/EscrituraImpuestosBalanceError'

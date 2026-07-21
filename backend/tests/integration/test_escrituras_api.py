@@ -290,3 +290,133 @@ async def test_close_escritura_with_sobrepago_allows_close(
 async def test_escrituras_require_auth(client: AsyncClient, seeded_config) -> None:
     response = await client.get("/api/v1/escrituras")
     assert response.status_code == 401
+
+
+IMPUESTO_PAYLOAD = {
+    "tipo": "API",
+    "monto_total": "10000.00",
+    "periodo_inicio": "2026-05-01",
+    "periodo_fin": "2026-06-30",
+    "fecha_corte": "2026-06-15",
+    "direccion_prorrateo": "hacia_atras",
+}
+
+
+async def _create_impuesto(auth_client: AsyncClient, escritura_id: str) -> dict:
+    response = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/impuestos",
+        json=IMPUESTO_PAYLOAD,
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
+@pytest.mark.asyncio
+async def test_close_escritura_with_impuesto_balance_returns_409(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    monkeypatch.setattr("services.pago_impuesto_escribania_service.publish", AsyncMock())
+
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    await _pay_full(auth_client, escritura_id, created["costo_total"])
+    impuesto = await _create_impuesto(auth_client, escritura_id)
+
+    pago_cliente = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/impuestos/{impuesto['id']}/pago-cliente",
+        json={"monto": "7540.98", "fecha": PAGO_FECHA},
+    )
+    assert pago_cliente.status_code == 201
+    pago_escribania = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/impuestos/{impuesto['id']}/pago-escribania",
+        json={"monto": "2459.02", "fecha": PAGO_FECHA},
+    )
+    assert pago_escribania.status_code == 201
+
+    response = await auth_client.post(f"/api/v1/escrituras/{escritura_id}/close")
+    assert response.status_code == 409
+    body = response.json()["detail"]
+    assert body["code"] == "impuestos_balance_pendiente"
+    assert body["balance"] == "5081.96"
+
+
+@pytest.mark.asyncio
+async def test_close_escritura_with_impuesto_sin_pagos_returns_409(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    await _pay_full(auth_client, escritura_id, created["costo_total"])
+    await _create_impuesto(auth_client, escritura_id)
+
+    response = await auth_client.post(f"/api/v1/escrituras/{escritura_id}/close")
+    assert response.status_code == 409
+    body = response.json()["detail"]
+    assert body["code"] == "impuestos_pagos_pendientes"
+    assert len(body["impuestos_pendientes"]) == 1
+    assert body["impuestos_pendientes"][0]["tipo"] == "API"
+    assert body["impuestos_pendientes"][0]["falta_cliente"] is True
+    assert body["impuestos_pendientes"][0]["falta_escribania"] is True
+
+
+@pytest.mark.asyncio
+async def test_close_escritura_with_impuestos_balanceados_returns_200(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    monkeypatch.setattr("services.pago_impuesto_escribania_service.publish", AsyncMock())
+
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    await _pay_full(auth_client, escritura_id, created["costo_total"])
+    impuesto = await _create_impuesto(auth_client, escritura_id)
+
+    pago_cliente = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/impuestos/{impuesto['id']}/pago-cliente",
+        json={"monto": "7540.98", "fecha": PAGO_FECHA},
+    )
+    assert pago_cliente.status_code == 201
+    pago_escribania = await auth_client.post(
+        f"/api/v1/escrituras/{escritura_id}/impuestos/{impuesto['id']}/pago-escribania",
+        json={"monto": "7540.98", "fecha": PAGO_FECHA},
+    )
+    assert pago_escribania.status_code == 201
+
+    response = await auth_client.post(f"/api/v1/escrituras/{escritura_id}/close")
+    assert response.status_code == 200
+    assert response.json()["estado"] == "cerrada"
+
+
+@pytest.mark.asyncio
+async def test_get_escritura_includes_balance_impuestos(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    await _create_impuesto(auth_client, created["id"])
+
+    response = await auth_client.get(f"/api/v1/escrituras/{created['id']}")
+    assert response.status_code == 200
+    balance = response.json()["balance_impuestos"]
+    assert balance is not None
+    assert balance["balance"] == "0.00"
+    assert balance["puede_cerrar"] is False
+    assert len(balance["impuestos_pendientes"]) == 1

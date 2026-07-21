@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { LiquidacionEscribano } from "@/types/api";
-import { formatMoney, labelEstado } from "@/utils/format";
+import { formatMoney, formatSignedMoney, labelEstado, signedMoneyClass } from "@/utils/format";
 
 interface EscribanoCardProps {
   grupo: LiquidacionEscribano;
@@ -21,7 +21,7 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
         <div>
           <h3>{grupo.escribano_nombre}</h3>
           <p className="page-muted">
-            {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"} con cobros
+            {grupo.escrituras.length} escritura{grupo.escrituras.length === 1 ? "" : "s"} con actividad
           </p>
         </div>
         <div className="escribano-card__total">{formatMoney(grupo.total)}</div>
@@ -40,6 +40,7 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
                 <span>Escritura</span>
                 <span>Estado</span>
                 <span>Monto cobrado</span>
+                <span>Neto impuestos</span>
               </div>
               {grupo.escrituras.map((item) => (
                 <div key={item.escritura_id} className="escribano-card__row">
@@ -50,6 +51,17 @@ export function EscribanoCard({ grupo }: EscribanoCardProps) {
                     <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
                   </span>
                   <span className="escribano-card__subtotal">{formatMoney(item.monto_cobrado)}</span>
+                  <span
+                    className={`escribano-card__subtotal neto-impuestos${
+                      signedMoneyClass(
+                        item.neto_impuestos,
+                        " neto-impuestos--positive",
+                        " neto-impuestos--negative",
+                      ) ?? ""
+                    }`}
+                  >
+                    {formatSignedMoney(item.neto_impuestos)}
+                  </span>
                 </div>
               ))}
             </div>

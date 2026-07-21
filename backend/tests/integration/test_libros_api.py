@@ -6,9 +6,9 @@ from httpx import AsyncClient
 
 from helpers.escritura_factory import canonical_escritura_payload, insert_test_escritura
 
-TEST_YEAR = 2026
+TEST_YEAR = 2030
 TEST_MONTH = 7
-PAGO_FECHA = "2026-07-20"
+PAGO_FECHA = "2030-07-20"
 
 
 def _dt(day: int) -> datetime:
@@ -50,12 +50,13 @@ async def test_get_libro_entrada_returns_200_with_filter(
     body = response.json()
     assert body["anio"] == TEST_YEAR
     assert body["mes"] == TEST_MONTH
-    assert body["total"] == "100000.00"
     assert "resumen_deudas" in body
     assert any(linea["escritura_id"] == str(escritura.id) for linea in body["lineas"])
     linea = next(item for item in body["lineas"] if item["escritura_id"] == str(escritura.id))
+    assert linea["monto"] == "100000.00"
     assert linea["fecha_pago"] == PAGO_FECHA
     assert linea["concepto"] == "Anticipo API"
+    assert linea["origen"] == "honorario"
 
 
 @pytest.mark.asyncio
@@ -116,12 +117,13 @@ async def test_get_libro_salida_returns_200_with_structure(
     body = response.json()
     assert body["anio"] == TEST_YEAR
     assert body["mes"] == TEST_MONTH
-    assert body["total"] == "25000.00"
     assert body["lineas"]
-    linea = body["lineas"][0]
-    assert {"escritura_id", "escritura_nombre", "concepto", "monto", "fecha_pago"} <= linea.keys()
+    linea = next(item for item in body["lineas"] if item["escritura_id"] == str(escritura.id))
+    assert {"escritura_id", "escritura_nombre", "concepto", "monto", "fecha_pago", "origen"} <= linea.keys()
+    assert linea["monto"] == "25000.00"
     assert linea["fecha_pago"] == PAGO_FECHA
-    assert any(item["escritura_id"] == str(escritura.id) for item in body["lineas"])
+    assert linea["concepto"] == "Colegio API"
+    assert linea["origen"] == "honorario"
 
 
 @pytest.mark.asyncio

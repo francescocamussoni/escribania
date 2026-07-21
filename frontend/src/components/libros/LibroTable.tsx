@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
+import { LibroLineaRow, lineaKey } from "@/components/libros/LibroLineaRow";
 import type { LibroSalidaResponse } from "@/types/api";
-import { formatDateOnly, formatMoney } from "@/utils/format";
+import { formatMoney } from "@/utils/format";
 
 export interface LibroTableProps {
   data: LibroSalidaResponse | undefined;
@@ -26,22 +26,13 @@ export function LibroTable({ data, isLoading, error, emptyMessage }: LibroTableP
     <section className="libro-table card" aria-label="Líneas del libro">
       <div className="libro-table__grid libro-table__grid--header">
         <span>Concepto</span>
+        <span>Tipo impuesto</span>
         <span>Monto</span>
         <span>Escritura</span>
         <span>Fecha de pago</span>
       </div>
       {data.lineas.map((linea, index) => (
-        <div
-          key={`${linea.escritura_id}-${linea.concepto}-${index}`}
-          className="libro-table__grid libro-table__grid--row"
-        >
-          <span>{linea.concepto || "—"}</span>
-          <span className="libro-table__amount">{formatMoney(linea.monto)}</span>
-          <Link to={`/escrituras/${linea.escritura_id}`} className="text-link">
-            {linea.escritura_nombre}
-          </Link>
-          <span>{formatDateOnly(linea.fecha_pago)}</span>
-        </div>
+        <LibroLineaRow key={lineaKey(linea, index)} linea={linea} />
       ))}
       <div className="libro-table__footer">
         <span>Total del período</span>

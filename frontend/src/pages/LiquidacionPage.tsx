@@ -23,7 +23,7 @@ export function LiquidacionPage() {
       <header className="page-header page-header--stacked">
         <div>
           <h1>Liquidación</h1>
-          <p className="page-muted">Cobros reales del mes por escribano (pagos del cliente).</p>
+          <p className="page-muted">Cobros reales del mes por escribano, incluyendo neto de impuestos.</p>
         </div>
         <div className="period-selector">
           <label className="field">

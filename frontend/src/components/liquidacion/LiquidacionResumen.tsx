@@ -9,7 +9,7 @@ export function LiquidacionResumen({ data }: LiquidacionResumenProps) {
   return (
     <div className="liquidacion-resumen">
       <div className="liquidacion-resumen__total">
-        <span className="liquidacion-resumen__label">Total global</span>
+        <span className="liquidacion-resumen__label">Total global (honorarios + neto impuestos)</span>
         <span className="liquidacion-resumen__value">{formatMoney(data.total_global)}</span>
       </div>
       <div className="liquidacion-resumen__grid">

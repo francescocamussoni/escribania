@@ -26,6 +26,7 @@ from models.configuracion import ConfiguracionFinanciera
 from models.escribano import Escribano
 from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
+from models.gasto_extraordinario import GastoExtraordinario
 from models.pago_cliente import PagoCliente
 from models.pago_colegio import PagoColegio
 from schemas.pago_cliente import PagoClienteInput
@@ -37,10 +38,18 @@ from services.pago_colegio_service import create_pago as create_pago_colegio
 
 DEMO_PREFIX = "[DEMO]"
 DEMO_YEAR = 2026
-DEMO_SEED_VERSION = 2
+DEMO_SEED_VERSION = 3
 SCENARIOS_PER_ESCRIBANO = 4
 CLOSED_MONTHS = (1, 2, 3, 4, 5, 8, 9, 10, 11, 12)
 EXPECTED_DEMO_COUNT = len(CLOSED_MONTHS) * 3 + SCENARIOS_PER_ESCRIBANO * 3
+EXPECTED_DEMO_GASTO_COUNT = 3
+
+# Gastos extraordinarios julio 2026 (total $300.000 para reparto entre 3 escribanos)
+DEMO_GASTOS_JULIO: list[tuple[str, Decimal, int]] = [
+    ("Celulares oficina", Decimal("150000.00"), 8),
+    ("Papel e insumos", Decimal("100000.00"), 12),
+    ("Mantenimiento equipos", Decimal("50000.00"), 18),
+]
 
 DOLAR_MEP = Decimal("1450.34")
 DOLAR_NACION = Decimal("1425.00")
@@ -157,6 +166,10 @@ def _demo_nombre(client_label: str) -> str:
     return f"{DEMO_PREFIX} {client_label}"
 
 
+def _demo_gasto_concepto(label: str) -> str:
+    return f"{DEMO_PREFIX} {label}"
+
+
 def _dt(month: int, day: int, hour: int = 10) -> datetime:
     return datetime(DEMO_YEAR, month, day, hour, 0, 0, tzinfo=UTC)
 
@@ -183,7 +196,27 @@ async def _demo_count(session: AsyncSession) -> int:
     return int(count or 0)
 
 
+async def _demo_gasto_count(session: AsyncSession) -> int:
+    count = await session.scalar(
+        select(func.count())
+        .select_from(GastoExtraordinario)
+        .where(GastoExtraordinario.concepto.like(f"{DEMO_PREFIX}%"))
+    )
+    return int(count or 0)
+
+
+async def _wipe_demo_gastos(session: AsyncSession) -> None:
+    result = await session.execute(
+        delete(GastoExtraordinario).where(GastoExtraordinario.concepto.like(f"{DEMO_PREFIX}%"))
+    )
+    deleted = result.rowcount or 0
+    if deleted:
+        await session.commit()
+        print(f"Removed {deleted} legacy demo gastos extraordinarios.")
+
+
 async def _wipe_demo_data(session: AsyncSession) -> None:
+    await _wipe_demo_gastos(session)
     ids = list(
         await session.scalars(select(Escritura.id).where(Escritura.nombre.like(f"{DEMO_PREFIX}%")))
     )
@@ -408,6 +441,23 @@ async def _seed_jun_jul_scenarios(
     await _close_at(session, c4.id, _dt(7, 12, hour=18))
 
 
+async def _seed_demo_gastos_julio(session: AsyncSession) -> None:
+    for label, monto, day in DEMO_GASTOS_JULIO:
+        session.add(
+            GastoExtraordinario(
+                id=uuid.uuid4(),
+                concepto=_demo_gasto_concepto(label),
+                monto=monto,
+                fecha=_d(7, day),
+            )
+        )
+    await session.commit()
+    print(
+        f"Seeded {EXPECTED_DEMO_GASTO_COUNT} demo gastos extraordinarios "
+        f"(julio {DEMO_YEAR}, total $300.000)."
+    )
+
+
 async def seed() -> None:
     settings = get_settings()
     if settings.environment != "local":
@@ -419,11 +469,15 @@ async def seed() -> None:
 
     async with AsyncSessionLocal() as session:
         demo_count = await _demo_count(session)
-        if demo_count == EXPECTED_DEMO_COUNT:
+        demo_gasto_count = await _demo_gasto_count(session)
+        if demo_count == EXPECTED_DEMO_COUNT and demo_gasto_count == EXPECTED_DEMO_GASTO_COUNT:
             print(
                 f"Demo seed v{DEMO_SEED_VERSION} already present "
-                f"({EXPECTED_DEMO_COUNT} escrituras) — skipping."
+                f"({EXPECTED_DEMO_COUNT} escrituras, {EXPECTED_DEMO_GASTO_COUNT} gastos) — skipping."
             )
+            return
+        if demo_count == EXPECTED_DEMO_COUNT and demo_gasto_count == 0:
+            await _seed_demo_gastos_julio(session)
             return
         if demo_count > 0:
             await _wipe_demo_data(session)
@@ -446,9 +500,11 @@ async def seed() -> None:
                 escribano_nombre,
                 JUN_JUL_SCENARIOS[escribano_nombre],
             )
+        await _seed_demo_gastos_julio(session)
 
     print(
         f"Seeded demo v{DEMO_SEED_VERSION}: {EXPECTED_DEMO_COUNT} escrituras "
+        f"y {EXPECTED_DEMO_GASTO_COUNT} gastos extraordinarios "
         f"(año {DEMO_YEAR}, 3 escribanos, meses cerrados + escenarios jun/jul)."
     )
 

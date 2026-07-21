@@ -7,6 +7,8 @@ from schemas.liquidacion import LiquidacionEscrituraItem
 class PagoEscribano(BaseModel):
     nombre: str
     monto_total: MoneyStr
+    deduccion_gastos_extraordinarios: MoneyStr
+    monto_neto: MoneyStr
     escrituras: list[LiquidacionEscrituraItem]
 
 
@@ -21,3 +23,5 @@ class PagoSalariosResumen(BaseModel):
     mes: int
     escribanos: list[PagoEscribano]
     secretarias: list[PagoSecretaria]
+    total_gastos_extraordinarios: MoneyStr
+    advertencia_reparto: str | None = None

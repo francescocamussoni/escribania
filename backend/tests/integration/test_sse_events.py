@@ -125,3 +125,72 @@ async def test_sse_pago_colegio_created(
 async def test_sse_requires_auth(client: AsyncClient, seeded_config) -> None:
     response = await client.get("/api/v1/events")
     assert response.status_code == 401
+
+
+GASTO_EXTRAORDINARIO_PAYLOAD = {
+    "concepto": "Celulares SSE",
+    "monto": "150000.00",
+    "fecha": "2030-07-15",
+}
+
+
+@pytest.mark.asyncio
+async def test_sse_gasto_extraordinario_created(auth_client: AsyncClient) -> None:
+    queue = event_hub.subscribe()
+    try:
+        response = await auth_client.post(
+            "/api/v1/gastos-extraordinarios",
+            json=GASTO_EXTRAORDINARIO_PAYLOAD,
+        )
+        assert response.status_code == 201
+        gasto_id = response.json()["id"]
+
+        data = await _wait_for_event(queue, "gasto_extraordinario.created")
+        assert data["gasto_extraordinario_id"] == gasto_id
+        assert data["anio"] == 2030
+        assert data["mes"] == 7
+    finally:
+        event_hub.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
+async def test_sse_gasto_extraordinario_updated(auth_client: AsyncClient) -> None:
+    created = await auth_client.post(
+        "/api/v1/gastos-extraordinarios",
+        json=GASTO_EXTRAORDINARIO_PAYLOAD,
+    )
+    assert created.status_code == 201
+    gasto_id = created.json()["id"]
+
+    queue = event_hub.subscribe()
+    try:
+        response = await auth_client.patch(
+            f"/api/v1/gastos-extraordinarios/{gasto_id}",
+            json={"monto": "175000.00"},
+        )
+        assert response.status_code == 200
+
+        data = await _wait_for_event(queue, "gasto_extraordinario.updated")
+        assert data["gasto_extraordinario_id"] == gasto_id
+    finally:
+        event_hub.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
+async def test_sse_gasto_extraordinario_deleted(auth_client: AsyncClient) -> None:
+    created = await auth_client.post(
+        "/api/v1/gastos-extraordinarios",
+        json=GASTO_EXTRAORDINARIO_PAYLOAD,
+    )
+    assert created.status_code == 201
+    gasto_id = created.json()["id"]
+
+    queue = event_hub.subscribe()
+    try:
+        response = await auth_client.delete(f"/api/v1/gastos-extraordinarios/{gasto_id}")
+        assert response.status_code == 204
+
+        data = await _wait_for_event(queue, "gasto_extraordinario.deleted")
+        assert data["gasto_extraordinario_id"] == gasto_id
+    finally:
+        event_hub.unsubscribe(queue)

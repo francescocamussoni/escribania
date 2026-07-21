@@ -1,0 +1,268 @@
+{
+  "metadata": {
+    "feature": "005-gastos-extraordinarios",
+    "branch": "005-gastos-extraordinarios",
+    "generated_at": "2026-07-21T01:40:00Z",
+    "source_plan": "specs/005-gastos-extraordinarios/plan.md",
+    "source_tasks": "specs/005-gastos-extraordinarios/tasks.md",
+    "total_work_units": 12,
+    "estimated_hours": 24,
+    "parity_contract_reference": null,
+    "notes": "Greenfield feature. UI sin Figma (reuse LiquidacionPage / LibroSalida patterns). Migration 008 after 007 impuestos."
+  },
+  "work_units": [
+    {
+      "id": "WU-001",
+      "file_path": "backend/tests/unit/test_gasto_extraordinario_reparto.py",
+      "action": "CREATE",
+      "description": "Tests TDD reparto equitativo: división exacta, indivisible con remanente al último alfabético, n=0",
+      "priority": 1,
+      "estimated_hours": 1,
+      "user_stories": ["US2"],
+      "functional_requirements": ["FR-011", "FR-012"],
+      "success_criteria": ["SC-003", "SC-004"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. $300.000 ÷ 3 escribanos → tres cuotas de $100.000",
+        "2. $100 ÷ 3 → suma cuotas = $100 (centavos al último)",
+        "3. n=0 → lista vacía, sin excepción",
+        "4. Verificar orden alfabético para asignación de remanente"
+      ],
+      "success_criteria_detail": "Suite falla antes de gasto_extraordinario_reparto.py",
+      "dependencies": [],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-002",
+      "file_path": "backend/src/services/gasto_extraordinario_reparto.py",
+      "action": "CREATE",
+      "description": "Módulo puro reparto_equitativo(total, n) con redondeo determinístico",
+      "priority": 2,
+      "estimated_hours": 1,
+      "user_stories": ["US2"],
+      "functional_requirements": ["FR-011"],
+      "success_criteria": ["SC-003"],
+      "affected_endpoints": [],
+      "legacy_tests": ["backend/tests/unit/test_gasto_extraordinario_reparto.py"],
+      "subtasks": [
+        "1. ROUND_DOWN base por escribano",
+        "2. Asignar remanente al último índice (caller ordena alfabético)",
+        "3. Retornar lista de Decimal quantizados a 0.01"
+      ],
+      "success_criteria_detail": "test_gasto_extraordinario_reparto.py 100% verde",
+      "dependencies": ["WU-001"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-003",
+      "file_path": "backend/alembic/versions/008_gastos_extraordinarios.py",
+      "action": "CREATE",
+      "description": "Migración tabla gastos_extraordinarios",
+      "priority": 3,
+      "estimated_hours": 1.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-003"],
+      "success_criteria": ["SC-002"],
+      "affected_endpoints": [],
+      "legacy_tests": ["backend/tests/integration/test_migration_008_gastos_extraordinarios.py"],
+      "subtasks": [
+        "1. Tabla con concepto, monto, fecha, timestamps",
+        "2. Índice ix_gastos_extraordinarios_fecha",
+        "3. Downgrade drop table"
+      ],
+      "success_criteria_detail": "alembic upgrade head idempotente",
+      "dependencies": [],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-004",
+      "file_path": "backend/src/models/gasto_extraordinario.py",
+      "action": "CREATE",
+      "description": "Modelo ORM GastoExtraordinario",
+      "priority": 4,
+      "estimated_hours": 0.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-003"],
+      "success_criteria": [],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Mapped columns según data-model",
+        "2. Export en models/__init__.py"
+      ],
+      "success_criteria_detail": "Modelo importable sin errores",
+      "dependencies": ["WU-003"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-005",
+      "file_path": "backend/src/schemas/gasto_extraordinario.py",
+      "action": "CREATE",
+      "description": "Schemas Pydantic Input/Update/Response/List",
+      "priority": 4,
+      "estimated_hours": 0.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-003", "FR-006"],
+      "success_criteria": [],
+      "affected_endpoints": ["GET /gastos-extraordinarios", "POST /gastos-extraordinarios"],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Validación monto > 0, concepto min 1",
+        "2. extra=forbid en Input",
+        "3. Update min 1 campo"
+      ],
+      "success_criteria_detail": "Alineado con openapi-delta.yaml",
+      "dependencies": ["WU-003"],
+      "parallel_safe": true
+    },
+    {
+      "id": "WU-006",
+      "file_path": "backend/src/services/gasto_extraordinario_service.py",
+      "action": "CREATE",
+      "description": "CRUD gastos extraordinarios por mes",
+      "priority": 5,
+      "estimated_hours": 2,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-003", "FR-004", "FR-005", "FR-006"],
+      "success_criteria": ["SC-001"],
+      "affected_endpoints": ["GET/POST/PATCH/DELETE /gastos-extraordinarios"],
+      "legacy_tests": ["backend/tests/unit/test_gasto_extraordinario_service.py"],
+      "subtasks": [
+        "1. list_by_month(anio, mes) con total",
+        "2. create/update/delete",
+        "3. Publicar SSE en mutaciones"
+      ],
+      "success_criteria_detail": "Tests unit + integration US1 verdes",
+      "dependencies": ["WU-004", "WU-005"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-007",
+      "file_path": "backend/src/services/libros_service.py",
+      "action": "MODIFY",
+      "description": "Libro salida incluye gastos extraordinarios origen=extraordinario",
+      "priority": 6,
+      "estimated_hours": 2,
+      "user_stories": ["US1", "US3"],
+      "functional_requirements": ["FR-007", "FR-008", "FR-009", "FR-010", "FR-015"],
+      "success_criteria": ["SC-002"],
+      "affected_endpoints": ["GET /libros/salida"],
+      "legacy_tests": ["backend/tests/unit/test_libros_service.py"],
+      "subtasks": [
+        "1. Extender LibroLineaResponse schema",
+        "2. _gasto_extraordinario_linea helper",
+        "3. Merge en get_libro_salida por fecha"
+      ],
+      "success_criteria_detail": "Una línea por gasto; total libro coherente",
+      "dependencies": ["WU-006"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-008",
+      "file_path": "backend/src/services/salario_service.py",
+      "action": "MODIFY",
+      "description": "Deducción gastos extraordinarios en pago de escribanos",
+      "priority": 7,
+      "estimated_hours": 2,
+      "user_stories": ["US2"],
+      "functional_requirements": ["FR-011", "FR-012", "FR-013", "FR-014"],
+      "success_criteria": ["SC-003", "SC-004"],
+      "affected_endpoints": ["GET /salarios"],
+      "legacy_tests": ["backend/tests/unit/test_salario.py"],
+      "subtasks": [
+        "1. Extender schemas salarios.py",
+        "2. Calcular total mensual gastos",
+        "3. reparto_equitativo + monto_neto por escribano",
+        "4. advertencia_reparto si n=0"
+      ],
+      "success_criteria_detail": "Deducción $100k × 3 con $300k total",
+      "dependencies": ["WU-002", "WU-006"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-009",
+      "file_path": "backend/src/api/routes/gastos_extraordinarios.py",
+      "action": "CREATE",
+      "description": "Rutas REST gastos extraordinarios + registro en router",
+      "priority": 6,
+      "estimated_hours": 1.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-002"],
+      "success_criteria": [],
+      "affected_endpoints": ["GET/POST/PATCH/DELETE /gastos-extraordinarios"],
+      "legacy_tests": ["backend/tests/integration/test_gastos_extraordinarios_api.py"],
+      "subtasks": [
+        "1. GET con query anio/mes",
+        "2. POST/PATCH/DELETE con auth",
+        "3. Mapeo 404/422"
+      ],
+      "success_criteria_detail": "Integration API verde",
+      "dependencies": ["WU-006"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-010",
+      "file_path": "frontend/src/pages/GastosExtraordinariosPage.tsx",
+      "action": "CREATE",
+      "description": "Página mensual CRUD gastos extraordinarios",
+      "priority": 8,
+      "estimated_hours": 3,
+      "user_stories": ["US1", "US3"],
+      "functional_requirements": ["FR-001", "FR-004", "FR-005"],
+      "success_criteria": ["SC-001", "SC-006"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. api/gastosExtraordinarios.ts + hook",
+        "2. Form + List components",
+        "3. Period selector + total mes"
+      ],
+      "success_criteria_detail": "Registrar gasto visible en < 3s",
+      "dependencies": ["WU-009"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-011",
+      "file_path": "frontend/src/components/layout/Navbar.tsx",
+      "action": "MODIFY",
+      "description": "Navbar: Gastos Extraordinarios en 2.ª posición + ruta App",
+      "priority": 9,
+      "estimated_hours": 0.5,
+      "user_stories": ["US1"],
+      "functional_requirements": ["FR-001"],
+      "success_criteria": ["SC-006"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. Insertar link después de Escrituras",
+        "2. App.tsx route /gastos-extraordinarios"
+      ],
+      "success_criteria_detail": "100% vistas autenticadas muestran orden correcto",
+      "dependencies": ["WU-010"],
+      "parallel_safe": false
+    },
+    {
+      "id": "WU-012",
+      "file_path": "frontend/src/components/salarios/PagoEscribanoCard.tsx",
+      "action": "MODIFY",
+      "description": "UI deducción gastos + libro badge + SSE",
+      "priority": 10,
+      "estimated_hours": 3,
+      "user_stories": ["US2", "US3"],
+      "functional_requirements": ["FR-013", "FR-009"],
+      "success_criteria": ["SC-005"],
+      "affected_endpoints": [],
+      "legacy_tests": [],
+      "subtasks": [
+        "1. PagoEscribanoCard deducción y monto_neto",
+        "2. SalariosPage advertencia",
+        "3. LibroLineaRow badge Extraordinario",
+        "4. useSSE gasto_extraordinario.*"
+      ],
+      "success_criteria_detail": "Quickstart manual verde",
+      "dependencies": ["WU-008", "WU-010"],
+      "parallel_safe": false
+    }
+  ]
+}

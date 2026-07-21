@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from schemas.common import MoneyStr
 from schemas.factura import FacturaPrincipalResponse
+from schemas.impuesto import BalanceImpuestosResponse
 from schemas.pago_cliente import PagoClienteResponse
 from schemas.pago_colegio import PagoColegioResponse
 
@@ -89,5 +90,6 @@ class EscrituraResponse(BaseModel):
     pagada_al_100: bool
     sobrepago: bool
     total_leyes_notariales_proyectadas: MoneyStr
+    balance_impuestos: BalanceImpuestosResponse | None = None
     pagos_cliente: list[PagoClienteResponse] = Field(default_factory=list)
     pagos_colegio: list[PagoColegioResponse] = Field(default_factory=list)

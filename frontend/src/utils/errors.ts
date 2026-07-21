@@ -11,6 +11,12 @@ const KNOWN_API_MESSAGES: Record<string, string> = {
   "Escritura is already closed": "La escritura ya está cerrada.",
   "No se puede cerrar la escritura: saldo pendiente de cobro":
     "No se puede cerrar la escritura: hay saldo pendiente de cobro.",
+  "No se puede cerrar la escritura: balance de impuestos pendiente":
+    "No se puede cerrar la escritura: el balance de impuestos no está en cero.",
+  "No se puede cerrar la escritura: impuestos con pagos incompletos":
+    "No se puede cerrar la escritura: hay impuestos con pagos incompletos.",
+  "Cannot delete impuesto with registered payments":
+    "No se puede eliminar un impuesto que tiene pagos registrados.",
   "No se pudo consultar la cotización oficial":
     "No se pudo consultar la cotización oficial. Podés ingresar los valores manualmente.",
 };
@@ -32,6 +38,24 @@ function extractSaldoPendiente(detail: string | Record<string, unknown> | undefi
   return null;
 }
 
+function extractBalanceImpuestos(
+  detail: string | Record<string, unknown> | undefined,
+): string | null {
+  if (detail && typeof detail === "object" && typeof detail.balance === "string") {
+    return detail.balance;
+  }
+  return null;
+}
+
+function extractImpuestosPendientesCount(
+  detail: string | Record<string, unknown> | undefined,
+): number | null {
+  if (detail && typeof detail === "object" && Array.isArray(detail.impuestos_pendientes)) {
+    return detail.impuestos_pendientes.length;
+  }
+  return null;
+}
+
 export function closeEscrituraSaldoMessage(error: unknown): string | null {
   if (!(error instanceof ApiRequestError) || error.status !== 409) {
     return null;
@@ -41,6 +65,22 @@ export function closeEscrituraSaldoMessage(error: unknown): string | null {
     return null;
   }
   return `No se puede cerrar la escritura. Saldo pendiente: ${formatMoney(saldo)}.`;
+}
+
+export function closeEscrituraImpuestosMessage(error: unknown): string | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) {
+    return null;
+  }
+  const detail = error.body?.detail;
+  const balance = extractBalanceImpuestos(detail);
+  if (balance) {
+    return `No se puede cerrar la escritura. Balance de impuestos: ${formatMoney(balance)}.`;
+  }
+  const pendientes = extractImpuestosPendientesCount(detail);
+  if (pendientes !== null && pendientes > 0) {
+    return `No se puede cerrar la escritura. ${pendientes} impuesto(s) con pagos incompletos.`;
+  }
+  return null;
 }
 
 function translateApiMessage(message: string): string {

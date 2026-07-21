@@ -1,18 +1,25 @@
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from models.impuesto_escritura import TipoImpuesto
 from schemas.common import MoneyStr
+
+LibroOrigen = Literal["honorario", "impuesto", "extraordinario"]
 
 
 class LibroLineaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    escritura_id: str
-    escritura_nombre: str
+    escritura_id: str | None = None
+    escritura_nombre: str | None = None
     concepto: str
     monto: MoneyStr
     fecha_pago: date
+    origen: LibroOrigen = "honorario"
+    tipo_impuesto: TipoImpuesto | None = None
+    gasto_extraordinario_id: str | None = None
 
 
 class DeudaResumenItem(BaseModel):

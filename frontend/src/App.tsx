@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
+import { GastosExtraordinariosPage } from "@/pages/GastosExtraordinariosPage";
 import { EscrituraDetail } from "@/pages/EscrituraDetail";
 import { EscriturasPage } from "@/pages/EscriturasPage";
 import { LiquidacionPage } from "@/pages/LiquidacionPage";
@@ -18,6 +19,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/escrituras" replace />} />
           <Route path="/escrituras" element={<EscriturasPage />} />
           <Route path="/escrituras/:id" element={<EscrituraDetail />} />
+          <Route path="/gastos-extraordinarios" element={<GastosExtraordinariosPage />} />
           <Route path="/liquidacion" element={<LiquidacionPage />} />
           <Route path="/salarios" element={<SalariosPage />} />
           <Route path="/libro-entrada" element={<LibroEntradaPage />} />

@@ -502,6 +502,145 @@ input {
   }
 }
 
+.impuestos-balance {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #f5f7fb;
+  border: 1px solid #e0e6ef;
+}
+
+.impuestos-balance__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.impuestos-balance__grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 0;
+}
+
+.impuestos-balance__grid dt {
+  font-size: 0.8rem;
+  color: #607d8b;
+}
+
+.impuestos-balance__grid dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.impuestos-balance__value--positive {
+  color: #1b5e20;
+}
+
+.impuestos-balance__value--negative {
+  color: #b71c1c;
+}
+
+.impuestos-balance__pendientes {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: #455a64;
+}
+
+.impuestos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.impuesto-card {
+  border: 1px solid #e0e6ef;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+}
+
+.impuesto-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.impuesto-card__header .badge {
+  margin-left: 0.5rem;
+}
+
+.impuesto-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.impuesto-card__meta {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 0.75rem 0 0;
+}
+
+.impuesto-card__meta dt {
+  font-size: 0.75rem;
+  color: #607d8b;
+}
+
+.impuesto-card__meta dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+}
+
+.impuesto-card__pagos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eceff1;
+}
+
+.impuesto-card__pagos-readonly p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.impuesto-form__preview {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: #455a64;
+}
+
+.impuesto-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.impuesto-form__grid,
+.impuesto-pago-form__grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.impuesto-pago-form {
+  margin: 0;
+  padding: 0.75rem;
+  background: #fafbfc;
+  border-radius: 0.4rem;
+}
+
+.impuesto-pago-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .badge {
   display: inline-block;
   border-radius: 999px;
@@ -525,6 +664,73 @@ input {
   color: #607d8b;
   font-weight: 500;
   padding: 0;
+}
+
+.badge--extraordinario {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.gasto-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.gastos-extraordinarios-page__total {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+.gastos-extra-list__row {
+  grid-template-columns: 2fr 1fr 1fr 1.5fr;
+}
+
+.gastos-extra-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.salarios-page__gastos-total {
+  margin: 0 0 1rem;
+}
+
+.salarios-page__advertencia {
+  margin-bottom: 1rem;
+}
+
+.pago-card__deduccion {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.pago-card__total-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #607d8b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pago-card__summary {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.pago-card__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pago-card__summary-row--total {
+  font-size: 1.05rem;
 }
 
 .modal-backdrop {
@@ -792,7 +998,7 @@ input {
 .escribano-card__row,
 .pago-card__row {
   display: grid;
-  grid-template-columns: 2fr 0.9fr 1fr;
+  grid-template-columns: 2fr 0.9fr 1fr 1fr;
   gap: 0.75rem;
   align-items: center;
   padding: 0.5rem 0;
@@ -811,6 +1017,14 @@ input {
 .pago-card__subtotal {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.neto-impuestos--positive {
+  color: #0f766e;
+}
+
+.neto-impuestos--negative {
+  color: #b45309;
 }
 
 .secretaria-grid {
@@ -950,11 +1164,22 @@ input {
 
 .libro-table__grid {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
   gap: 0.75rem;
   align-items: center;
   padding: 0.75rem 1.25rem;
   font-size: 0.92rem;
+}
+
+.libro-table__concepto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.libro-table__origen {
+  font-size: 0.72rem;
 }
 
 .libro-table__grid--header {

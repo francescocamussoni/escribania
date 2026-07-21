@@ -9,9 +9,9 @@ from models.escritura import EstadoEscritura
 from models.pago_cliente import PagoCliente
 from helpers.escritura_factory import insert_test_escritura
 
-TEST_YEAR = 2026
+TEST_YEAR = 2030
 TEST_MONTH = 7
-PAGO_FECHA = "2026-07-20"
+PAGO_FECHA = "2030-07-20"
 
 
 def _dt(day: int) -> datetime:
@@ -93,6 +93,117 @@ async def test_get_liquidacion_returns_resumen(
     assert por_escribano["Gabriel"]["escrituras"][0]["escritura_id"] == str(e2.id)
     assert por_escribano["Gabriel"]["escrituras"][0]["monto_cobrado"] == "150000.00"
     assert por_escribano["Victoria"]["escrituras"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_liquidacion_includes_neto_impuestos(
+    auth_client: AsyncClient,
+    db_session,
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    from models.impuesto_escritura import DireccionProrrateo, TipoImpuesto
+    from schemas.impuesto import ImpuestoInput, PagoImpuestoInput
+    from services.impuesto_service import create_impuesto
+
+    escritura = await insert_test_escritura(
+        db_session,
+        seeded_config,
+        escribano_nombre="Costanza",
+        created_at=_dt(8),
+        nombre="API Neto Impuestos",
+    )
+    cleanup_escrituras.append(escritura.id)
+    impuesto = await create_impuesto(
+        db_session,
+        escritura.id,
+        ImpuestoInput(
+            tipo=TipoImpuesto.API,
+            monto_total=Decimal("10000.00"),
+            periodo_inicio=date(2026, 5, 1),
+            periodo_fin=date(2026, 6, 30),
+            fecha_corte=date(2026, 6, 15),
+            direccion_prorrateo=DireccionProrrateo.HACIA_ATRAS,
+        ),
+    )
+    from services.pago_impuesto_cliente_service import upsert_pago
+
+    await upsert_pago(
+        db_session,
+        escritura.id,
+        impuesto.id,
+        PagoImpuestoInput(monto=Decimal("50000.00"), fecha=date(TEST_YEAR, TEST_MONTH, 20)),
+    )
+
+    response = await auth_client.get(
+        "/api/v1/liquidacion",
+        params={"anio": TEST_YEAR, "mes": TEST_MONTH},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    costanza = next(item for item in body["por_escribano"] if item["escribano_nombre"] == "Costanza")
+    linea = next(
+        item for item in costanza["escrituras"] if item["escritura_id"] == str(escritura.id)
+    )
+    assert linea["neto_impuestos"] == "50000.00"
+    assert linea["monto_cobrado"] == "0.00"
+    assert costanza["total"] == "50000.00"
+
+
+@pytest.mark.asyncio
+async def test_close_liquidacion_mensual_with_impuesto_balance_returns_200(
+    auth_client: AsyncClient,
+    db_session,
+    seeded_config,
+    cleanup_escrituras: list,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("services.pago_impuesto_cliente_service.publish", AsyncMock())
+    from models.impuesto_escritura import DireccionProrrateo, TipoImpuesto
+    from schemas.impuesto import ImpuestoInput, PagoImpuestoInput
+    from services.impuesto_service import create_impuesto
+    from services.liquidacion_service import close_liquidacion_mensual
+
+    escritura = await insert_test_escritura(
+        db_session,
+        seeded_config,
+        escribano_nombre="Gabriel",
+        created_at=_dt(9),
+    )
+    cleanup_escrituras.append(escritura.id)
+    impuesto = await create_impuesto(
+        db_session,
+        escritura.id,
+        ImpuestoInput(
+            tipo=TipoImpuesto.API,
+            monto_total=Decimal("10000.00"),
+            periodo_inicio=date(2026, 5, 1),
+            periodo_fin=date(2026, 6, 30),
+            fecha_corte=date(2026, 6, 15),
+            direccion_prorrateo=DireccionProrrateo.HACIA_ATRAS,
+        ),
+    )
+    from services.pago_impuesto_cliente_service import upsert_pago
+
+    await upsert_pago(
+        db_session,
+        escritura.id,
+        impuesto.id,
+        PagoImpuestoInput(monto=Decimal("50000.00"), fecha=date(TEST_YEAR, TEST_MONTH, 20)),
+    )
+    await close_liquidacion_mensual(db_session, TEST_YEAR, TEST_MONTH)
+
+    response = await auth_client.get(
+        "/api/v1/liquidacion",
+        params={"anio": TEST_YEAR, "mes": TEST_MONTH},
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,169 @@
+# OpenAPI 3.0 delta — Feature 005-gastos-extraordinarios
+# Base: specs/001-plataforma-contaduria/contracts/openapi.yaml
+
+openapi: 3.0.0
+info:
+  title: Contaduría Escribanía API — Delta 005
+  version: 1.0.0
+  description: Gastos extraordinarios de la escribanía
+
+paths:
+  /gastos-extraordinarios:
+    get:
+      tags: [gastos-extraordinarios]
+      summary: Listar gastos extraordinarios del mes
+      parameters:
+        - name: anio
+          in: query
+          schema: { type: integer }
+        - name: mes
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        "200":
+          description: Listado y total del período
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GastosExtraordinariosListResponse"
+        "401":
+          description: No autenticado
+    post:
+      tags: [gastos-extraordinarios]
+      summary: Registrar gasto extraordinario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GastoExtraordinarioInput"
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GastoExtraordinarioResponse"
+        "401":
+          description: No autenticado
+        "422":
+          description: Validación fallida
+
+  /gastos-extraordinarios/{gasto_id}:
+    patch:
+      tags: [gastos-extraordinarios]
+      summary: Editar gasto extraordinario
+      parameters:
+        - name: gasto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GastoExtraordinarioUpdate"
+      responses:
+        "200":
+          description: Actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GastoExtraordinarioResponse"
+        "404":
+          description: No encontrado
+    delete:
+      tags: [gastos-extraordinarios]
+      summary: Eliminar gasto extraordinario
+      parameters:
+        - name: gasto_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Eliminado
+        "404":
+          description: No encontrado
+
+components:
+  schemas:
+    GastoExtraordinarioInput:
+      type: object
+      additionalProperties: false
+      required: [concepto, monto, fecha]
+      properties:
+        concepto:
+          type: string
+          minLength: 1
+          maxLength: 500
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Monto positivo con hasta 2 decimales
+        fecha:
+          type: string
+          format: date
+
+    GastoExtraordinarioUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        concepto:
+          type: string
+          minLength: 1
+          maxLength: 500
+        monto:
+          type: string
+        fecha:
+          type: string
+          format: date
+
+    GastoExtraordinarioResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        concepto: { type: string }
+        monto: { type: string }
+        fecha: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    GastosExtraordinariosListResponse:
+      type: object
+      properties:
+        anio: { type: integer }
+        mes: { type: integer }
+        gastos:
+          type: array
+          items:
+            $ref: "#/components/schemas/GastoExtraordinarioResponse"
+        total: { type: string }
+
+    # Delta on existing schemas (documented for implementers)
+    LibroLineaResponse_delta:
+      description: Extend origen enum with "extraordinario"; escritura_id nullable
+      properties:
+        origen:
+          enum: [honorario, impuesto, extraordinario]
+        escritura_id: { type: string, nullable: true }
+        escritura_nombre: { type: string, nullable: true }
+        gasto_extraordinario_id: { type: string, format: uuid, nullable: true }
+
+    PagoEscribano_delta:
+      properties:
+        deduccion_gastos_extraordinarios: { type: string }
+        monto_neto: { type: string }
+
+    PagoSalariosResumen_delta:
+      properties:
+        total_gastos_extraordinarios: { type: string }
+        advertencia_reparto: { type: string, nullable: true }
+
+  # SSE events (delta)
+  x-sse-events:
+    - gasto_extraordinario.created
+    - gasto_extraordinario.updated
+    - gasto_extraordinario.deleted

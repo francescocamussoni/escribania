@@ -11,6 +11,7 @@ class LiquidacionEscrituraItem(BaseModel):
     nombre: str
     estado: EstadoEscritura
     monto_cobrado: MoneyStr
+    neto_impuestos: MoneyStr
 
 
 class LiquidacionEscribano(BaseModel):

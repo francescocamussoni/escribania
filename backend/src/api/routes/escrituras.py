@@ -18,6 +18,8 @@ from schemas.pago_cliente import PagoClienteResponse
 from schemas.pago_colegio import PagoColegioResponse
 from services.escritura_errors import (
     EscrituraClosedError,
+    EscrituraImpuestosBalanceError,
+    EscrituraImpuestosPagosPendientesError,
     EscrituraNotFoundError,
     EscrituraSaldoPendienteError,
 )
@@ -29,11 +31,12 @@ from services.escritura_service import (
     list_escrituras,
     update_escritura,
 )
+from services.impuesto_service import get_balance_impuestos
 
 router = APIRouter(prefix="/escrituras", tags=["escrituras"])
 
 
-def _to_response(escritura) -> EscrituraResponse:
+def _to_response(escritura, *, balance_impuestos=None) -> EscrituraResponse:
     saldo = build_saldo_fields(escritura)
     return EscrituraResponse(
         id=escritura.id,
@@ -55,11 +58,17 @@ def _to_response(escritura) -> EscrituraResponse:
         pagada_al_100=saldo["pagada_al_100"],
         sobrepago=saldo["sobrepago"],
         total_leyes_notariales_proyectadas=saldo["total_leyes_notariales_proyectadas"],
+        balance_impuestos=balance_impuestos,
         pagos_cliente=[
             PagoClienteResponse.model_validate(pago) for pago in escritura.pagos_cliente
         ],
         pagos_colegio=[PagoColegioResponse.model_validate(pago) for pago in escritura.pagos_colegio],
     )
+
+
+async def _to_response_with_balance(db: AsyncSession, escritura) -> EscrituraResponse:
+    balance = await get_balance_impuestos(db, escritura.id)
+    return _to_response(escritura, balance_impuestos=balance)
 
 
 @router.get("", response_model=list[EscrituraListItem])
@@ -123,7 +132,7 @@ async def get_escritura_route(
         escritura = await get_escritura(db, escritura_id)
     except EscrituraNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return _to_response(escritura)
+    return await _to_response_with_balance(db, escritura)
 
 
 @router.patch("/{escritura_id}", response_model=EscrituraResponse)
@@ -164,4 +173,30 @@ async def close_escritura_route(
                 "saldo_pendiente": format(exc.saldo_pendiente, "f"),
             },
         ) from exc
-    return _to_response(escritura)
+    except EscrituraImpuestosPagosPendientesError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": exc.code,
+                "detail": "No se puede cerrar la escritura: impuestos con pagos incompletos",
+                "impuestos_pendientes": [
+                    {
+                        "impuesto_id": str(item["impuesto_id"]),
+                        "tipo": item["tipo"],
+                        "falta_cliente": item["falta_cliente"],
+                        "falta_escribania": item["falta_escribania"],
+                    }
+                    for item in exc.impuestos_pendientes
+                ],
+            },
+        ) from exc
+    except EscrituraImpuestosBalanceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": exc.code,
+                "detail": "No se puede cerrar la escritura: balance de impuestos pendiente",
+                "balance": format(exc.balance, "f"),
+            },
+        ) from exc
+    return await _to_response_with_balance(db, escritura)
