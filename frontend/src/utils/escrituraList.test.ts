@@ -87,7 +87,7 @@ describe("buildEscribanoFilterOptions", () => {
   const escribanos: EscribanoResponse[] = [
     {
       id: "esc-a",
-      nombre: "Victoria",
+      nombre: "Monica",
       activo: true,
       created_at: "2026-01-01T00:00:00Z",
     },
@@ -133,7 +133,7 @@ describe("buildEscribanoFilterOptions", () => {
 
   it("sorts options alphabetically by label", () => {
     const options = buildEscribanoFilterOptions(escribanos, SAMPLE_ESCRITURAS);
-    expect(options.map((option) => option.label)).toEqual(["Gabriel", "Victoria"]);
+    expect(options.map((option) => option.label)).toEqual(["Gabriel", "Monica"]);
   });
 });
 

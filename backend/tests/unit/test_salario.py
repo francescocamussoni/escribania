@@ -229,7 +229,7 @@ async def test_deduccion_gastos_extraordinarios_reparto_equitativo(
     assert deducciones == {
         "Costanza": Decimal("100000.00"),
         "Gabriel": Decimal("100000.00"),
-        "Victoria": Decimal("100000.00"),
+        "Monica": Decimal("100000.00"),
     }
     costanza = next(p for p in pagos.escribanos if p.nombre == "Costanza")
     assert costanza.monto_neto == Decimal("150000.00")

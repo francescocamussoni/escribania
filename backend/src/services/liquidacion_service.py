@@ -23,7 +23,7 @@ _QUANT = Decimal("0.01")
 _LEGACY_TOTAL_FIELDS = {
     "costanza": "total_costanza",
     "gabriel": "total_gabriel",
-    "victoria": "total_victoria",
+    "monica": "total_monica",
 }
 
 
@@ -200,7 +200,7 @@ async def get_liquidacion_mensual(
         mes=mes,
         total_costanza=legacy_totals["total_costanza"],
         total_gabriel=legacy_totals["total_gabriel"],
-        total_victoria=legacy_totals["total_victoria"],
+        total_monica=legacy_totals["total_monica"],
         total_global=total_global,
         por_escribano=por_escribano,
     )

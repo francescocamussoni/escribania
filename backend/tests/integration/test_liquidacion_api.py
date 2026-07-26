@@ -45,7 +45,7 @@ async def test_get_liquidacion_returns_resumen(
     prev = await insert_test_escritura(
         db_session,
         seeded_config,
-        escribano_nombre="Victoria",
+        escribano_nombre="Monica",
         created_at=_prev_month_dt(1),
         estado=EstadoEscritura.CERRADA,
     )
@@ -83,7 +83,7 @@ async def test_get_liquidacion_returns_resumen(
     assert body["mes"] == TEST_MONTH
     assert body["total_costanza"] == "200000.00"
     assert body["total_gabriel"] == "150000.00"
-    assert body["total_victoria"] == "0.00"
+    assert body["total_monica"] == "0.00"
     assert body["total_global"] == "350000.00"
 
     por_escribano = {item["escribano_nombre"]: item for item in body["por_escribano"]}
@@ -92,7 +92,7 @@ async def test_get_liquidacion_returns_resumen(
     assert por_escribano["Costanza"]["escrituras"][0]["monto_cobrado"] == "200000.00"
     assert por_escribano["Gabriel"]["escrituras"][0]["escritura_id"] == str(e2.id)
     assert por_escribano["Gabriel"]["escrituras"][0]["monto_cobrado"] == "150000.00"
-    assert por_escribano["Victoria"]["escrituras"] == []
+    assert por_escribano["Monica"]["escrituras"] == []
 
 
 @pytest.mark.asyncio

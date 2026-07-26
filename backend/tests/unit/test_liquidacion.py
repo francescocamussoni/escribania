@@ -161,7 +161,7 @@ async def test_previous_month_payment_does_not_count(
         escritura = await insert_test_escritura(
             session,
             seeded_config,
-            escribano_nombre="Victoria",
+            escribano_nombre="Monica",
             created_at=_dt(8),
             estado=EstadoEscritura.CERRADA,
         )
@@ -175,9 +175,9 @@ async def test_previous_month_payment_does_not_count(
 
         resumen = await get_liquidacion_mensual(session, TEST_YEAR, TEST_MONTH)
 
-    victoria = next(e for e in resumen.por_escribano if e.escribano_nombre == "Victoria")
-    assert victoria.escrituras == []
-    assert victoria.total == Decimal("0.00")
+    monica = next(e for e in resumen.por_escribano if e.escribano_nombre == "Monica")
+    assert monica.escrituras == []
+    assert monica.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio
@@ -302,7 +302,7 @@ async def test_neto_impuestos_compensados_es_cero(
         escritura = await insert_test_escritura(
             session,
             seeded_config,
-            escribano_nombre="Victoria",
+            escribano_nombre="Monica",
             created_at=_dt(13),
         )
         cleanup_escrituras.append(escritura.id)
@@ -324,9 +324,9 @@ async def test_neto_impuestos_compensados_es_cero(
         )
         resumen = await get_liquidacion_mensual(session, TEST_YEAR, TEST_MONTH)
 
-    victoria = next(e for e in resumen.por_escribano if e.escribano_nombre == "Victoria")
-    assert victoria.escrituras[0].neto_impuestos == Decimal("0.00")
-    assert victoria.total == Decimal("0.00")
+    monica = next(e for e in resumen.por_escribano if e.escribano_nombre == "Monica")
+    assert monica.escrituras[0].neto_impuestos == Decimal("0.00")
+    assert monica.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio

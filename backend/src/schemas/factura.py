@@ -43,5 +43,9 @@ class FacturaPrincipalResponse(BaseModel):
     fotocopias_simples: Decimal
     tasas_minimas: Decimal
     total_gastos_admin: Decimal
+    dif_honorarios: Decimal
+    total_parcial: Decimal
+    total_sin_iva: Decimal
+    iva: Decimal
     total_factura: Decimal
     updated_at: datetime | None = None

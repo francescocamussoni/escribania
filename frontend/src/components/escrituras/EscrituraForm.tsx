@@ -103,47 +103,49 @@ export function EscrituraForm({
 
   return (
     <form className="escritura-form" onSubmit={handleSubmit}>
-      <label className="field">
-        <span>Nombre</span>
-        <input
-          type="text"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          required
-          readOnly={readOnly}
-        />
-      </label>
-
-      <label className="field">
-        <span>Escribano</span>
-        {readOnly ? (
+      <div className="escritura-form__grid escritura-form__grid--two">
+        <label className="field">
+          <span>Nombre</span>
           <input
             type="text"
-            readOnly
-            value={displayEscribanoNombre(
-              initial?.escribano_id ?? escribanoId,
-              initial?.escribano_nombre ?? selectedEscribano?.nombre ?? "",
-              todosEscribanos,
-            )}
-          />
-        ) : escribanosLoading ? (
-          <input type="text" readOnly value="Cargando escribanos…" />
-        ) : escribanoOptions.length === 0 ? (
-          <p className="form-error">No hay escribanos activos. Agregá uno en Configuración.</p>
-        ) : (
-          <select
-            value={escribanoId}
-            onChange={(e) => setEscribanoId(e.target.value)}
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
             required
-          >
-            {escribanoOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {displayEscribanoNombre(item.id, item.nombre, todosEscribanos)}
-              </option>
-            ))}
-          </select>
-        )}
-      </label>
+            readOnly={readOnly}
+          />
+        </label>
+
+        <label className="field">
+          <span>Escribano</span>
+          {readOnly ? (
+            <input
+              type="text"
+              readOnly
+              value={displayEscribanoNombre(
+                initial?.escribano_id ?? escribanoId,
+                initial?.escribano_nombre ?? selectedEscribano?.nombre ?? "",
+                todosEscribanos,
+              )}
+            />
+          ) : escribanosLoading ? (
+            <input type="text" readOnly value="Cargando escribanos…" />
+          ) : escribanoOptions.length === 0 ? (
+            <p className="form-error">No hay escribanos activos. Agregá uno en Configuración.</p>
+          ) : (
+            <select
+              value={escribanoId}
+              onChange={(e) => setEscribanoId(e.target.value)}
+              required
+            >
+              {escribanoOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {displayEscribanoNombre(item.id, item.nombre, todosEscribanos)}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
+      </div>
 
       {!readOnly ? (
         <div className="escritura-form__cotizacion">

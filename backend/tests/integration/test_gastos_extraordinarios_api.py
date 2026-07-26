@@ -112,7 +112,7 @@ async def test_post_gasto_refleja_deduccion_en_salarios(
     assert deducciones == {
         "Costanza": "100000.00",
         "Gabriel": "100000.00",
-        "Victoria": "100000.00",
+        "Monica": "100000.00",
     }
     for item in body["escribanos"]:
         monto_total = Decimal(item["monto_total"])

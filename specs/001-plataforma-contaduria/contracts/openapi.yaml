@@ -249,7 +249,7 @@ components:
           type: string
         total_gabriel:
           type: string
-        total_victoria:
+        total_monica:
           type: string
         total_global:
           type: string

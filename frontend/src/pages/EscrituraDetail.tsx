@@ -206,7 +206,7 @@ export function EscrituraDetail() {
           <section className="detail-card">
             <h2>Pagos de la escribanía</h2>
             <p className="page-muted saldo-resumen__referencia">
-              Leyes notariales proyectadas (referencia):{" "}
+              Honorarios varios proyectados (referencia):{" "}
               <strong>{formatMoney(escritura.total_leyes_notariales_proyectadas)}</strong>
             </p>
             <PagoColegioList pagos={escritura.pagos_colegio} />

@@ -52,6 +52,10 @@ class FacturaPrincipal(Base):
     fotocopias_simples: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     tasas_minimas: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_gastos_admin: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    dif_honorarios: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    total_parcial: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    total_sin_iva: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    iva: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_factura: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

@@ -45,7 +45,7 @@ const CONFIG_SECTIONS: SectionDef[] = [
     ],
   },
   {
-    title: "Leyes notariales",
+    title: "Honorarios varios",
     fields: [
       { key: "art2_a_pct", label: "Art. 2 a) %", step: "0.0001" },
       { key: "art12_a_pct", label: "Art. 12 a) %", step: "0.0001" },

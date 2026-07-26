@@ -36,13 +36,13 @@ class TestRepartoEquitativoIndivisible:
 
     def test_remanente_al_ultimo_indice_para_orden_alfabetico(self) -> None:
         """Caller ordena escribanos por nombre; el último recibe centavos sobrantes."""
-        nombres = sorted(["Victoria", "Costanza", "Gabriel"])
+        nombres = sorted(["Monica", "Costanza", "Gabriel"])
         cuotas = reparto_equitativo(Decimal("100.00"), len(nombres))
         asignacion = dict(zip(nombres, cuotas, strict=True))
 
         assert asignacion["Costanza"] == Decimal("33.33")
         assert asignacion["Gabriel"] == Decimal("33.33")
-        assert asignacion["Victoria"] == Decimal("33.34")
+        assert asignacion["Monica"] == Decimal("33.34")
 
 
 class TestRepartoEquitativoBordes:

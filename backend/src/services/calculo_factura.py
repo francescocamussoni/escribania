@@ -4,6 +4,15 @@ from typing import Any
 
 
 TWOPLACES = Decimal("0.01")
+IVA_PCT = Decimal("0.21")
+
+GASTOS_EXCLUIDOS_TOTAL_PARCIAL = (
+    "fotocopias_urgentes",
+    "informes_notariales",
+    "municipio",
+    "ii_certificados",
+    "catastro",
+)
 
 
 def _q(value: Decimal) -> Decimal:
@@ -167,6 +176,30 @@ def calcular_gastos_admin(config: ConfigCalculo) -> dict[str, Decimal]:
     return items
 
 
+def calcular_totales_factura(
+    *,
+    suma_hon_cert: Decimal,
+    aporte_12pct: Decimal,
+    subtotal_honorarios: Decimal,
+    total_impuestos: Decimal,
+    total_gastos_admin: Decimal,
+    gastos: dict[str, Decimal],
+) -> dict[str, Decimal]:
+    dif_honorarios = _q(suma_hon_cert - aporte_12pct)
+    excluded = sum(gastos[key] for key in GASTOS_EXCLUIDOS_TOTAL_PARCIAL)
+    total_parcial = _q(dif_honorarios + total_gastos_admin - excluded)
+    total_sin_iva = _q(total_parcial + subtotal_honorarios + total_impuestos)
+    iva = _q((dif_honorarios + total_impuestos) * IVA_PCT)
+    total_factura = _q(total_sin_iva + iva)
+    return {
+        "dif_honorarios": dif_honorarios,
+        "total_parcial": total_parcial,
+        "total_sin_iva": total_sin_iva,
+        "iva": iva,
+        "total_factura": total_factura,
+    }
+
+
 def calcular_factura_completa(
     usd_value: Decimal,
     dolar_mep: Decimal,
@@ -179,12 +212,13 @@ def calcular_factura_completa(
     impuestos = calcular_impuestos(precio_base_nacion, config)
     gastos = calcular_gastos_admin(config)
 
-    total_factura = _q(
-        honorarios["suma_hon_cert"]
-        + honorarios["subtotal_honorarios"]
-        + leyes["total_leyes_notariales"]
-        + impuestos["total_impuestos"]
-        + gastos["total_gastos_admin"]
+    totales = calcular_totales_factura(
+        suma_hon_cert=honorarios["suma_hon_cert"],
+        aporte_12pct=honorarios["aporte_12pct"],
+        subtotal_honorarios=honorarios["subtotal_honorarios"],
+        total_impuestos=impuestos["total_impuestos"],
+        total_gastos_admin=gastos["total_gastos_admin"],
+        gastos=gastos,
     )
 
     return {
@@ -194,5 +228,5 @@ def calcular_factura_completa(
         **leyes,
         **impuestos,
         **gastos,
-        "total_factura": total_factura,
+        **totales,
     }

@@ -60,6 +60,10 @@ FACTURA_CALC_FIELDS = (
     "fotocopias_simples",
     "tasas_minimas",
     "total_gastos_admin",
+    "dif_honorarios",
+    "total_parcial",
+    "total_sin_iva",
+    "iva",
     "total_factura",
 )
 

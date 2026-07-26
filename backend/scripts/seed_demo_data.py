@@ -32,13 +32,14 @@ from models.pago_colegio import PagoColegio
 from schemas.pago_cliente import PagoClienteInput
 from schemas.pago_colegio import PagoColegioInput
 from services.calculo_factura import calcular_factura_completa
-from services.escritura_service import close_escritura, config_from_row, get_active_config
+from services.escritura_service import close_escritura, config_from_row, get_active_config, total_pagado_from_escritura
 from services.pago_cliente_service import create_pago
 from services.pago_colegio_service import create_pago as create_pago_colegio
+from services.pago_saldo import is_sobrepago
 
 DEMO_PREFIX = "[DEMO]"
 DEMO_YEAR = 2026
-DEMO_SEED_VERSION = 3
+DEMO_SEED_VERSION = 5
 SCENARIOS_PER_ESCRIBANO = 4
 CLOSED_MONTHS = (1, 2, 3, 4, 5, 8, 9, 10, 11, 12)
 EXPECTED_DEMO_COUNT = len(CLOSED_MONTHS) * 3 + SCENARIOS_PER_ESCRIBANO * 3
@@ -88,6 +89,10 @@ FACTURA_FIELDS = (
     "fotocopias_simples",
     "tasas_minimas",
     "total_gastos_admin",
+    "dif_honorarios",
+    "total_parcial",
+    "total_sin_iva",
+    "iva",
     "total_factura",
 )
 
@@ -117,7 +122,7 @@ MONTHLY_CLIENTS: dict[str, list[tuple[str, Decimal]]] = {
         ("Hipoteca Navarro (Galicia)", Decimal("122000")),
         ("Compraventa Silvia / Ortega — Barracas", Decimal("87000")),
     ],
-    "Victoria": [
+    "Monica": [
         ("Compraventa Peralta / Núñez — San Telmo", Decimal("80000")),
         ("Hipoteca Castillo — Constitución", Decimal("112000")),
         ("Sucesión Benítez", Decimal("76000")),
@@ -145,7 +150,7 @@ JUN_JUL_SCENARIOS: dict[str, list[tuple[str, Decimal]]] = {
         ("Sucesión Vera — Lomas de Zamora", Decimal("93000")),
         ("Donación Campos — Temperley", Decimal("96000")),
     ],
-    "Victoria": [
+    "Monica": [
         ("Compraventa Ibáñez — Remedios de Escalada", Decimal("85000")),
         ("Hipoteca Navarro — Lanús Oeste", Decimal("88000")),
         ("Sucesión Ríos — Valentín Alsina", Decimal("82000")),
@@ -164,6 +169,10 @@ def _pct(total: Decimal, percent: Decimal) -> Decimal:
 
 def _demo_nombre(client_label: str) -> str:
     return f"{DEMO_PREFIX} {client_label}"
+
+
+def _demo_seed_version_marker() -> str:
+    return f"{DEMO_PREFIX} seed-version:{DEMO_SEED_VERSION}"
 
 
 def _demo_gasto_concepto(label: str) -> str:
@@ -200,9 +209,48 @@ async def _demo_gasto_count(session: AsyncSession) -> int:
     count = await session.scalar(
         select(func.count())
         .select_from(GastoExtraordinario)
-        .where(GastoExtraordinario.concepto.like(f"{DEMO_PREFIX}%"))
+        .where(
+            GastoExtraordinario.concepto.like(f"{DEMO_PREFIX}%"),
+            GastoExtraordinario.concepto != _demo_seed_version_marker(),
+        )
     )
     return int(count or 0)
+
+
+async def _demo_seed_version_matches(session: AsyncSession) -> bool:
+    count = await session.scalar(
+        select(func.count())
+        .select_from(GastoExtraordinario)
+        .where(GastoExtraordinario.concepto == _demo_seed_version_marker())
+    )
+    return int(count or 0) > 0
+
+
+async def _demo_has_sobrepago(session: AsyncSession) -> bool:
+    escrituras = await session.scalars(
+        select(Escritura)
+        .options(selectinload(Escritura.factura), selectinload(Escritura.pagos_cliente))
+        .where(Escritura.nombre.like(f"{DEMO_PREFIX}%"))
+    )
+    for escritura in escrituras:
+        if escritura.factura is None:
+            continue
+        total_pagado = total_pagado_from_escritura(escritura)
+        if is_sobrepago(escritura.factura.total_factura, total_pagado):
+            return True
+    return False
+
+
+async def _demo_needs_refresh(session: AsyncSession) -> bool:
+    demo_count = await _demo_count(session)
+    demo_gasto_count = await _demo_gasto_count(session)
+    if demo_count != EXPECTED_DEMO_COUNT:
+        return True
+    if demo_gasto_count != EXPECTED_DEMO_GASTO_COUNT:
+        return True
+    if not await _demo_seed_version_matches(session):
+        return True
+    return await _demo_has_sobrepago(session)
 
 
 async def _wipe_demo_gastos(session: AsyncSession) -> None:
@@ -458,6 +506,11 @@ async def _seed_demo_gastos_julio(session: AsyncSession) -> None:
     )
 
 
+async def _verify_demo_saldo(session: AsyncSession) -> None:
+    if await _demo_has_sobrepago(session):
+        raise RuntimeError("Demo seed inconsistente: quedaron escrituras con sobrepago.")
+
+
 async def seed() -> None:
     settings = get_settings()
     if settings.environment != "local":
@@ -468,19 +521,16 @@ async def seed() -> None:
         return
 
     async with AsyncSessionLocal() as session:
-        demo_count = await _demo_count(session)
-        demo_gasto_count = await _demo_gasto_count(session)
-        if demo_count == EXPECTED_DEMO_COUNT and demo_gasto_count == EXPECTED_DEMO_GASTO_COUNT:
+        if not await _demo_needs_refresh(session):
             print(
                 f"Demo seed v{DEMO_SEED_VERSION} already present "
-                f"({EXPECTED_DEMO_COUNT} escrituras, {EXPECTED_DEMO_GASTO_COUNT} gastos) — skipping."
+                f"({EXPECTED_DEMO_COUNT} escrituras, {EXPECTED_DEMO_GASTO_COUNT} gastos, sin sobrepago) — skipping."
             )
             return
-        if demo_count == EXPECTED_DEMO_COUNT and demo_gasto_count == 0:
-            await _seed_demo_gastos_julio(session)
-            return
-        if demo_count > 0:
-            await _wipe_demo_data(session)
+
+        if await _demo_has_sobrepago(session):
+            print("Demo escrituras con sobrepago detectado — regenerando dataset.")
+        await _wipe_demo_data(session)
 
         config_row = await get_active_config(session)
         for escribano_nombre, monthly_cases in MONTHLY_CLIENTS.items():
@@ -501,6 +551,16 @@ async def seed() -> None:
                 JUN_JUL_SCENARIOS[escribano_nombre],
             )
         await _seed_demo_gastos_julio(session)
+        session.add(
+            GastoExtraordinario(
+                id=uuid.uuid4(),
+                concepto=_demo_seed_version_marker(),
+                monto=Decimal("0.01"),
+                fecha=_d(1, 1),
+            )
+        )
+        await session.commit()
+        await _verify_demo_saldo(session)
 
     print(
         f"Seeded demo v{DEMO_SEED_VERSION}: {EXPECTED_DEMO_COUNT} escrituras "

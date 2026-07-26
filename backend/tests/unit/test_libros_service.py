@@ -260,6 +260,7 @@ async def test_libro_entrada_resumen_deudas_for_open_escrituras_with_saldo(
     )
     assert con_deuda_item.saldo_pendiente == con_deuda_item.costo_total
     assert con_deuda_item.total_pagado == Decimal("0.00")
+    assert con_deuda_item.costo_total == Decimal("11550066.53")
 
 
 @pytest.mark.asyncio

@@ -18,7 +18,11 @@ EXPECTED_FACTURA = {
     "total_leyes_notariales": "1532857.00",
     "total_impuestos": "5311489.50",
     "total_gastos_admin": "95444.77",
-    "total_factura": "11731403.68",
+    "dif_honorarios": "3618308.23",
+    "total_parcial": "3683421.00",
+    "total_sin_iva": "9674809.01",
+    "iva": "1875257.52",
+    "total_factura": "11550066.53",
 }
 
 PAGO_FECHA = "2026-07-20"
@@ -45,6 +49,10 @@ def _assert_saldo_abierta_sin_pagos(body: dict) -> None:
     assert body["sobrepago"] is False
     assert body["pagos_cliente"] == []
     assert body["pagos_colegio"] == []
+    factura = body["factura"]
+    assert Decimal(factura["total_factura"]) == Decimal(factura["total_sin_iva"]) + Decimal(
+        factura["iva"]
+    )
 
 
 async def _create_escritura(

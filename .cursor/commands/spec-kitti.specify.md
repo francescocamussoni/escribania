@@ -1,4 +1,4 @@
----
+   ---
 description: Create or update the feature specification from a natural language feature description.
 scripts:
   sh: .spec-kitti/scripts/bash/create-new-feature.sh --json "{ARGS}"

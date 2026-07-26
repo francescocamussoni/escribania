@@ -64,7 +64,7 @@ export function formatDateOnly(value: string): string {
 const ESCRIBANO_LABELS: Record<Escribano, string> = {
   costanza: "Costanza",
   gabriel: "Gabriel",
-  victoria: "Victoria",
+  monica: "Monica",
 };
 
 export function labelEscribano(escribano: Escribano): string {

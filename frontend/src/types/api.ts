@@ -1,7 +1,7 @@
 // Types derived from specs/001-plataforma-contaduria/contracts/openapi.yaml
 
 export type EstadoEscritura = "abierta" | "cerrada";
-export type Escribano = "costanza" | "gabriel" | "victoria";
+export type Escribano = "costanza" | "gabriel" | "monica";
 export type DireccionGasto = "entrada" | "salida";
 
 export type SseEventType =
@@ -83,6 +83,10 @@ export interface FacturaPrincipalResponse {
   fotocopias_simples: string;
   tasas_minimas: string;
   total_gastos_admin: string;
+  dif_honorarios: string;
+  total_parcial: string;
+  total_sin_iva: string;
+  iva: string;
   total_factura: string;
   updated_at: string;
 }
@@ -196,7 +200,7 @@ export interface LiquidacionResumen {
   mes: number;
   total_costanza: string;
   total_gabriel: string;
-  total_victoria: string;
+  total_monica: string;
   total_global: string;
   por_escribano: LiquidacionEscribano[];
 }

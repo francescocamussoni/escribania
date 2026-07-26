@@ -12,7 +12,7 @@ async def test_list_escribanos_returns_active(auth_client: AsyncClient) -> None:
     response = await auth_client.get("/api/v1/configuracion/escribanos")
     assert response.status_code == 200
     names = {row["nombre"] for row in response.json()}
-    assert {"Costanza", "Gabriel", "Victoria"}.issubset(names)
+    assert {"Costanza", "Gabriel", "Monica"}.issubset(names)
     assert all(row["activo"] for row in response.json())
 
 

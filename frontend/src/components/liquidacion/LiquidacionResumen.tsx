@@ -22,8 +22,8 @@ export function LiquidacionResumen({ data }: LiquidacionResumenProps) {
           <span className="liquidacion-resumen__value">{formatMoney(data.total_gabriel)}</span>
         </div>
         <div className="liquidacion-resumen__card">
-          <span className="liquidacion-resumen__label">{labelEscribano("victoria")}</span>
-          <span className="liquidacion-resumen__value">{formatMoney(data.total_victoria)}</span>
+          <span className="liquidacion-resumen__label">{labelEscribano("monica")}</span>
+          <span className="liquidacion-resumen__value">{formatMoney(data.total_monica)}</span>
         </div>
       </div>
     </div>

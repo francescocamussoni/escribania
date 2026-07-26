@@ -29,7 +29,7 @@ class LiquidacionMensual(Base):
     )
     total_costanza: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_gabriel: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    total_victoria: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    total_monica: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_global: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 

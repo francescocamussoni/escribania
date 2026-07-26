@@ -22,6 +22,8 @@ from services.pago_cliente_service import (
 from services.pago_saldo import calc_saldo
 from helpers.escritura_factory import insert_test_escritura
 
+CANONICAL_TOTAL_FACTURA = Decimal("11550066.53")
+
 TEST_DATE = date(2026, 7, 20)
 
 
@@ -88,6 +90,26 @@ async def test_create_pago_valido_reduce_saldo(
         total_pagado = await sum_pagos(session, escritura.id)
         assert total_pagado == monto
         assert calc_saldo(costo, total_pagado) == costo - monto
+
+
+@pytest.mark.asyncio
+async def test_costo_total_es_total_mas_iva(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+) -> None:
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(
+            session, seeded_config, created_at=_dt(), estado=EstadoEscritura.ABIERTA
+        )
+        factura = await session.scalar(
+            select(FacturaPrincipal).where(FacturaPrincipal.escritura_id == escritura.id)
+        )
+        assert factura is not None
+        costo = await _costo_total(session, escritura.id)
+
+        assert costo == CANONICAL_TOTAL_FACTURA
+        assert costo == factura.total_sin_iva + factura.iva
+        assert costo == factura.total_factura
 
 
 @pytest.mark.asyncio

@@ -80,11 +80,9 @@ def test_calcular_factura_completa_canonical_fixture(
     assert result["tasas_minimas"] == Decimal("40.00")
     assert result["total_gastos_admin"] == Decimal("95444.77")
 
-    expected_total = (
-        result["suma_hon_cert"]
-        + result["subtotal_honorarios"]
-        + result["total_leyes_notariales"]
-        + result["total_impuestos"]
-        + result["total_gastos_admin"]
-    )
-    assert result["total_factura"] == expected_total
+    assert result["dif_honorarios"] == Decimal("3618308.23")
+    assert result["total_parcial"] == Decimal("3683421.00")
+    assert result["total_sin_iva"] == Decimal("9674809.01")
+    assert result["iva"] == Decimal("1875257.52")
+    assert result["total_factura"] == Decimal("11550066.53")
+    assert result["total_factura"] == result["total_sin_iva"] + result["iva"]

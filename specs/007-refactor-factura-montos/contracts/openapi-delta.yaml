@@ -1,0 +1,209 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Delta (feature 007-refactor-factura-montos)
+  description: |
+    Schema extensions for Factura Principal: new totales resumen fields,
+  reorganized invoice sections (UI), and updated semantics for total_factura
+  (now Total + IVA).
+  version: 0.7.0
+
+servers:
+  - url: /api/v1
+
+components:
+  schemas:
+
+    FacturaPrincipalResponse:
+      type: object
+      description: |
+        Primary invoice for an escritura. Line-item columns unchanged.
+        total_factura is Total + IVA (canonical client charge).
+      required:
+        - monto_base_mep
+        - precio_base_nacion
+        - honorario_principal
+        - certificacion
+        - suma_hon_cert
+        - aporte_12pct
+        - cinco_pct_hon
+        - firma_honorarios
+        - subtotal_honorarios
+        - art2_a
+        - art12_a
+        - art12_c
+        - art12_f
+        - total_leyes_notariales
+        - tasa_3pm
+        - sellos
+        - tasa_75pm
+        - firma_impuestos
+        - total_impuestos
+        - inscripcion
+        - protocolo
+        - ii_certificados
+        - municipio
+        - fotocopias_urgentes
+        - certificaciones_extra
+        - catastro
+        - testimonio
+        - concuerda
+        - informes_notariales
+        - extracto
+        - fotocopias_simples
+        - tasas_minimas
+        - total_gastos_admin
+        - dif_honorarios
+        - total_parcial
+        - total_sin_iva
+        - iva
+        - total_factura
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto_base_mep:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        precio_base_nacion:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: UI label "Precio base Valor"
+        honorario_principal:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        certificacion:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        suma_hon_cert:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        aporte_12pct:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        cinco_pct_hon:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        firma_honorarios:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        subtotal_honorarios:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        art2_a:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        art12_a:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        art12_c:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        art12_f:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        total_leyes_notariales:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: UI label "Total honorarios varios"
+        tasa_3pm:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        sellos:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        tasa_75pm:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        firma_impuestos:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        total_impuestos:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        inscripcion:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        protocolo:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        ii_certificados:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        municipio:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        fotocopias_urgentes:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        certificaciones_extra:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        catastro:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        testimonio:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        concuerda:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        informes_notariales:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        extracto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        fotocopias_simples:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        tasas_minimas:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        total_gastos_admin:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        dif_honorarios:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Suma hon. + cert. − Aporte 12%
+        total_parcial:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        total_sin_iva:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: UI label "Total" (sin IVA)
+        iva:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: (dif_honorarios + total_impuestos) × 21%
+        total_factura:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Total + IVA — canonical costo_total / saldo base
+        updated_at:
+          type: string
+          format: date-time
+
+    EscrituraDetailResponse:
+      type: object
+      description: |
+        costo_total and saldo_pendiente derive from factura.total_factura (Total + IVA).
+        total_leyes_notariales_proyectadas unchanged; UI label "Honorarios varios proyectados".
+      properties:
+        costo_total:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Equals factura.total_factura (Total + IVA)
+        saldo_pendiente:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        total_leyes_notariales_proyectadas:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Alias of factura.total_leyes_notariales
+
+paths: {}
