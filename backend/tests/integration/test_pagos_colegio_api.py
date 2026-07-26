@@ -21,13 +21,82 @@ async def test_create_pago_colegio_returns_201(
     created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "250000.00", "fecha": PAGO_FECHA, "concepto": "Aporte Colegio"},
+        json={"monto": "250000.00", "fecha": PAGO_FECHA, "concepto": "Aporte Colegio", "imputacion": "total_impuestos"},
     )
     assert response.status_code == 201
     body = response.json()
     assert body["escritura_id"] == created["id"]
     assert body["monto"] == "250000.00"
     assert body["concepto"] == "Aporte Colegio"
+    assert body["imputacion"] == "total_impuestos"
+
+
+@pytest.mark.asyncio
+async def test_create_pago_colegio_without_imputacion_returns_422(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    response = await auth_client.post(
+        f"/api/v1/escrituras/{created['id']}/pagos-colegio",
+        json={"monto": "1000.00", "fecha": PAGO_FECHA},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_honorarios_varios_pago_does_not_close_plazo(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    total_impuestos = created["factura"]["total_impuestos"]
+    response = await auth_client.post(
+        f"/api/v1/escrituras/{created['id']}/pagos-colegio",
+        json={
+            "monto": total_impuestos,
+            "fecha": PAGO_FECHA,
+            "imputacion": "honorarios_varios",
+        },
+    )
+    assert response.status_code == 201
+
+    detail = await auth_client.get(f"/api/v1/escrituras/{created['id']}")
+    plazo = detail.json()["plazo_colegio"]
+    assert plazo["estado"] == "pendiente"
+    assert plazo["monto_pagado"] == "0.00"
+    assert plazo["monto_pendiente"] == total_impuestos
+
+
+@pytest.mark.asyncio
+async def test_total_impuestos_pago_closes_plazo(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    total_impuestos = created["factura"]["total_impuestos"]
+    response = await auth_client.post(
+        f"/api/v1/escrituras/{created['id']}/pagos-colegio",
+        json={
+            "monto": total_impuestos,
+            "fecha": PAGO_FECHA,
+            "imputacion": "total_impuestos",
+        },
+    )
+    assert response.status_code == 201
+
+    detail = await auth_client.get(f"/api/v1/escrituras/{created['id']}")
+    plazo = detail.json()["plazo_colegio"]
+    assert plazo["estado"] == "pagado"
+    assert plazo["monto_pagado"] == total_impuestos
+    assert plazo["monto_pendiente"] == "0.00"
+    assert plazo["urgencia"] is None
 
 
 @pytest.mark.asyncio
@@ -43,7 +112,7 @@ async def test_create_pago_colegio_ok_con_saldo_cliente_pendiente(
 
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "150000.00", "fecha": PAGO_FECHA},
+        json={"monto": "150000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
     )
     assert response.status_code == 201
 
@@ -84,7 +153,7 @@ async def test_create_pago_colegio_closed_escritura_returns_409(
 
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "1000.00", "fecha": PAGO_FECHA},
+        json={"monto": "1000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
     )
     assert response.status_code == 409
 
@@ -102,7 +171,7 @@ async def test_create_pago_colegio_requires_auth(
     async with AsyncClient(transport=transport, base_url="http://test") as anon_client:
         response = await anon_client.post(
             f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-            json={"monto": "1000.00", "fecha": PAGO_FECHA},
+            json={"monto": "1000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
         )
     assert response.status_code == 401
 

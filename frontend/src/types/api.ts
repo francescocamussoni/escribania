@@ -19,7 +19,8 @@ export type SseEventType =
   | "gasto_extraordinario.updated"
   | "gasto_extraordinario.deleted"
   | "liquidacion.updated"
-  | "libros_updated";
+  | "libros_updated"
+  | "escribano.updated";
 
 export interface LoginInput {
   username: string;
@@ -125,10 +126,27 @@ export interface PagoClienteResponse {
   created_at: string;
 }
 
+export type ImputacionPagoColegio = "total_impuestos" | "honorarios_varios" | "otro";
+
+export type PlazoColegioEstado = "no_aplica" | "pendiente" | "vencido" | "pagado";
+
+export type PlazoColegioUrgencia = "verde" | "amarillo" | "rojo";
+
+export interface PlazoColegioResponse {
+  estado: PlazoColegioEstado;
+  fecha_vencimiento: string | null;
+  dias_restantes: number | null;
+  urgencia: PlazoColegioUrgencia | null;
+  monto_referencia: string;
+  monto_pagado: string;
+  monto_pendiente: string;
+}
+
 export interface PagoColegioInput {
   monto: string;
   fecha: string;
   concepto?: string;
+  imputacion: ImputacionPagoColegio;
 }
 
 export interface PagoColegioResponse {
@@ -137,6 +155,7 @@ export interface PagoColegioResponse {
   monto: string;
   fecha: string;
   concepto: string;
+  imputacion: ImputacionPagoColegio;
   created_at: string;
 }
 
@@ -161,6 +180,7 @@ export interface EscrituraResponse {
   sobrepago: boolean;
   total_leyes_notariales_proyectadas: string;
   balance_impuestos: BalanceImpuestosResponse | null;
+  plazo_colegio: PlazoColegioResponse | null;
   pagos_cliente: PagoClienteResponse[];
   pagos_colegio: PagoColegioResponse[];
 }
@@ -178,6 +198,7 @@ export interface EscrituraListItem {
   saldo_pendiente: string;
   pagada_al_100: boolean;
   sobrepago: boolean;
+  plazo_colegio: PlazoColegioResponse | null;
 }
 
 export interface LiquidacionEscrituraItem {
@@ -317,7 +338,12 @@ export interface EscribanoResponse {
   id: string;
   nombre: string;
   activo: boolean;
+  monotributista: boolean;
   created_at: string;
+}
+
+export interface EscribanoUpdateRequest {
+  monotributista: boolean;
 }
 
 export interface EmpleadoResponse {

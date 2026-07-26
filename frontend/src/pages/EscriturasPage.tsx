@@ -11,6 +11,7 @@ import {
   buildEscribanoFilterOptions,
   filterByNombre,
   sortByCreatedAt,
+  sortByVencimiento,
 } from "@/utils/escrituraList";
 import type { EstadoFilter, EscribanoFilter, CreatedAtPeriodFilter } from "@/hooks/useEscriturasListSession";
 import { getDefaultPeriod, MONTH_NAMES } from "@/utils/format";
@@ -55,13 +56,14 @@ export function EscriturasPage() {
     estadoFilter,
     searchQuery,
     createdAtPeriod,
+    sortField,
     sortDirection,
     toggleEscribanoFilter,
     setEstadoFilter,
     setCreatedAtPeriod,
     clearCreatedAtPeriod,
     setSearchQuery,
-    toggleSortDirection,
+    toggleSort,
   } = useEscriturasListSession();
 
   const serverFilters = useMemo(
@@ -81,8 +83,11 @@ export function EscriturasPage() {
 
   const displayItems = useMemo(() => {
     const filtered = filterByNombre(data ?? [], searchQuery);
+    if (sortField === "vencimiento") {
+      return sortByVencimiento(filtered, sortDirection);
+    }
     return sortByCreatedAt(filtered, sortDirection);
-  }, [data, searchQuery, sortDirection]);
+  }, [data, searchQuery, sortField, sortDirection]);
 
   const hasActiveFilters =
     escribanoFilter !== null ||
@@ -214,8 +219,9 @@ export function EscriturasPage() {
         items={displayItems}
         loading={isLoading}
         emptyMessage={emptyMessage}
+        sortField={sortField}
         sortDirection={sortDirection}
-        onSortToggle={toggleSortDirection}
+        onSort={toggleSort}
       />
 
       {showCreate ? (

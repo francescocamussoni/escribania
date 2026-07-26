@@ -3,7 +3,10 @@
 Año demo 2026:
 - Ene–May y Ago–Dic: 1 escritura cerrada/mes/escribano (30), nombres de clientes ficticios.
 - Jun–Jul: 4 escenarios/escribano (12), algunas abiertas con deuda.
-Total: 42 escrituras [DEMO].
+- Costanza: 3 escrituras abiertas con fechas escalonadas (plazo verde/amarillo/rojo).
+Total: 45 escrituras [DEMO] (seed v5).
+
+v5: Costanza monotributista, pagos colegio con imputaciones mixtas, fechas relativas para plazo.
 
 Solo corre si SEED_DEMO_DATA=true y ENVIRONMENT=local.
 Si existe un seed viejo (conteo distinto), borra y re-crea.
@@ -13,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import delete, func, select
@@ -28,7 +31,7 @@ from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
 from models.gasto_extraordinario import GastoExtraordinario
 from models.pago_cliente import PagoCliente
-from models.pago_colegio import PagoColegio
+from models.pago_colegio import ImputacionPagoColegio, PagoColegio
 from schemas.pago_cliente import PagoClienteInput
 from schemas.pago_colegio import PagoColegioInput
 from services.calculo_factura import calcular_factura_completa
@@ -41,8 +44,9 @@ DEMO_PREFIX = "[DEMO]"
 DEMO_YEAR = 2026
 DEMO_SEED_VERSION = 5
 SCENARIOS_PER_ESCRIBANO = 4
+PLAZO_SHOWCASE_COUNT = 3
 CLOSED_MONTHS = (1, 2, 3, 4, 5, 8, 9, 10, 11, 12)
-EXPECTED_DEMO_COUNT = len(CLOSED_MONTHS) * 3 + SCENARIOS_PER_ESCRIBANO * 3
+EXPECTED_DEMO_COUNT = len(CLOSED_MONTHS) * 3 + SCENARIOS_PER_ESCRIBANO * 3 + PLAZO_SHOWCASE_COUNT
 EXPECTED_DEMO_GASTO_COUNT = 3
 
 # Gastos extraordinarios julio 2026 (total $300.000 para reparto entre 3 escribanos)
@@ -136,7 +140,12 @@ MONTHLY_CLIENTS: dict[str, list[tuple[str, Decimal]]] = {
     ],
 }
 
-# Escenarios jun/jul por escribano: (nombre cliente, usd)
+# Escrituras abiertas de Costanza con created_at relativo a hoy (bandas plazo colegio)
+PLAZO_SHOWCASE: list[tuple[str, int, Decimal]] = [
+    ("Plazo colegio — banda verde (~30d)", 0, Decimal("105000")),
+    ("Plazo colegio — banda amarilla (~15d)", 15, Decimal("108000")),
+    ("Plazo colegio — banda roja (~2d)", 28, Decimal("102000")),
+]
 JUN_JUL_SCENARIOS: dict[str, list[tuple[str, Decimal]]] = {
     "Costanza": [
         ("Compraventa Peralta / Núñez — Quilmes", Decimal("105000")),
@@ -278,6 +287,13 @@ async def _wipe_demo_data(session: AsyncSession) -> None:
     print(f"Removed {len(ids)} legacy demo escrituras (re-seeding v{DEMO_SEED_VERSION}).")
 
 
+async def _ensure_costanza_monotributista(session: AsyncSession) -> None:
+    costanza = await _get_escribano_by_name(session, "Costanza")
+    if not costanza.monotributista:
+        costanza.monotributista = True
+        await session.commit()
+
+
 async def _insert_demo_escritura(
     session: AsyncSession,
     config_row: ConfiguracionFinanciera,
@@ -293,6 +309,7 @@ async def _insert_demo_escritura(
         DOLAR_MEP,
         DOLAR_NACION,
         config_from_row(config_row),
+        monotributista=escribano.monotributista,
     )
     escritura_id = uuid.uuid4()
     escritura = Escritura(
@@ -352,11 +369,17 @@ async def _pay_colegio(
     monto: Decimal,
     fecha: date,
     concepto: str,
+    imputacion: ImputacionPagoColegio = ImputacionPagoColegio.TOTAL_IMPUESTOS,
 ) -> None:
     await create_pago_colegio(
         session,
         escritura_id,
-        PagoColegioInput(monto=monto, fecha=fecha, concepto=concepto),
+        PagoColegioInput(
+            monto=monto,
+            fecha=fecha,
+            concepto=concepto,
+            imputacion=imputacion,
+        ),
     )
 
 
@@ -451,8 +474,18 @@ async def _seed_jun_jul_scenarios(
         c2.id,
         monto=Decimal("200000.00"),
         fecha=_d(7, 5),
-        concepto="Aporte Colegio",
+        concepto="Honorarios varios Colegio",
+        imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
     )
+    if escribano_nombre == "Costanza":
+        await _pay_colegio(
+            session,
+            c2.id,
+            monto=Decimal("100000.00"),
+            fecha=_d(7, 8),
+            concepto="Aporte parcial impuestos",
+            imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+        )
 
     # Junio–julio — cerrada tras pagos en ambos meses
     c3 = await _insert_demo_escritura(
@@ -487,6 +520,55 @@ async def _seed_jun_jul_scenarios(
     c4_total = await _costo_total(session, c4.id)
     await _pay_cliente(session, c4.id, monto=c4_total, fecha=_d(7, 10), concepto="Pago total julio")
     await _close_at(session, c4.id, _dt(7, 12, hour=18))
+
+
+async def _seed_plazo_showcase(
+    session: AsyncSession,
+    config_row: ConfiguracionFinanciera,
+) -> None:
+    """Tres escrituras abiertas de Costanza con created_at escalonado (hoy, -15d, -28d)."""
+    today = datetime.now(UTC).date()
+    for index, (label, days_ago, usd_value) in enumerate(PLAZO_SHOWCASE):
+        created_day = today - timedelta(days=days_ago)
+        created_at = datetime(
+            created_day.year,
+            created_day.month,
+            created_day.day,
+            10,
+            0,
+            0,
+            tzinfo=UTC,
+        )
+        escritura = await _insert_demo_escritura(
+            session,
+            config_row,
+            escribano_nombre="Costanza",
+            nombre=_demo_nombre(label),
+            created_at=created_at,
+            usd_value=usd_value,
+        )
+        if index == 1:
+            await _pay_colegio(
+                session,
+                escritura.id,
+                monto=Decimal("50000.00"),
+                fecha=created_day,
+                concepto="Honorarios varios (no cierra plazo)",
+                imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+            )
+        elif index == 2:
+            factura = await session.scalar(
+                select(FacturaPrincipal).where(FacturaPrincipal.escritura_id == escritura.id)
+            )
+            if factura is not None:
+                await _pay_colegio(
+                    session,
+                    escritura.id,
+                    monto=_q(factura.total_impuestos / 2),
+                    fecha=created_day,
+                    concepto="Aporte parcial Total impuestos",
+                    imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+                )
 
 
 async def _seed_demo_gastos_julio(session: AsyncSession) -> None:
@@ -533,6 +615,7 @@ async def seed() -> None:
         await _wipe_demo_data(session)
 
         config_row = await get_active_config(session)
+        await _ensure_costanza_monotributista(session)
         for escribano_nombre, monthly_cases in MONTHLY_CLIENTS.items():
             for month_index, month in enumerate(CLOSED_MONTHS):
                 client_label, usd_value = monthly_cases[month_index]
@@ -550,6 +633,7 @@ async def seed() -> None:
                 escribano_nombre,
                 JUN_JUL_SCENARIOS[escribano_nombre],
             )
+        await _seed_plazo_showcase(session, config_row)
         await _seed_demo_gastos_julio(session)
         session.add(
             GastoExtraordinario(
@@ -565,7 +649,7 @@ async def seed() -> None:
     print(
         f"Seeded demo v{DEMO_SEED_VERSION}: {EXPECTED_DEMO_COUNT} escrituras "
         f"y {EXPECTED_DEMO_GASTO_COUNT} gastos extraordinarios "
-        f"(año {DEMO_YEAR}, 3 escribanos, meses cerrados + escenarios jun/jul)."
+        f"(año {DEMO_YEAR}, 3 escribanos, meses cerrados + escenarios jun/jul + plazo showcase)."
     )
 
 

@@ -1,5 +1,5 @@
 import { apiFetch } from "@/api/client";
-import type { EscribanoResponse } from "@/types/api";
+import type { EscribanoResponse, EscribanoUpdateRequest } from "@/types/api";
 
 export function listEscribanos(includeInactive = false): Promise<EscribanoResponse[]> {
   const params = includeInactive ? "?include_inactive=true" : "";
@@ -17,5 +17,15 @@ export function deactivateEscribano(id: string, force = false): Promise<void> {
   const params = force ? "?force=true" : "";
   return apiFetch(`/configuracion/escribanos/${id}${params}`, {
     method: "DELETE",
+  });
+}
+
+export function updateEscribano(
+  id: string,
+  payload: EscribanoUpdateRequest,
+): Promise<EscribanoResponse> {
+  return apiFetch(`/configuracion/escribanos/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }

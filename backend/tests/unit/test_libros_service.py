@@ -10,7 +10,7 @@ from models.escritura import EstadoEscritura
 from models.gasto_extraordinario import GastoExtraordinario
 from models.impuesto_escritura import DireccionProrrateo, TipoImpuesto
 from models.pago_cliente import PagoCliente
-from models.pago_colegio import PagoColegio
+from models.pago_colegio import ImputacionPagoColegio, PagoColegio
 from schemas.impuesto import ImpuestoInput, PagoImpuestoInput
 from services.impuesto_service import create_impuesto
 from services.libros_service import get_libro_entrada, get_libro_salida
@@ -81,6 +81,7 @@ async def _insert_pago_colegio(
         concepto=concepto,
         monto=monto,
         fecha=fecha,
+        imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
     )
     session.add(pago)
     await session.commit()

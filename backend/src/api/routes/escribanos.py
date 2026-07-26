@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.deps import get_current_user
 from database import get_db
 from models.usuario import Usuario
-from schemas.escribano import EscribanoCreateRequest, EscribanoResponse
+from schemas.escribano import EscribanoCreateRequest, EscribanoResponse, EscribanoUpdateRequest
 from services.escribano_errors import (
     EscribanoDuplicateError,
     EscribanoHasEscriturasError,
     EscribanoNotFoundError,
 )
-from services.escribano_service import create, list_all, soft_delete
+from services.escribano_service import create, list_all, soft_delete, update_monotributista
 
 router = APIRouter(prefix="/configuracion/escribanos", tags=["escribanos"])
 
@@ -39,6 +39,24 @@ async def create_escribano_route(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return EscribanoResponse.from_orm_row(row)
+
+
+@router.patch("/{escribano_id}", response_model=EscribanoResponse)
+async def update_escribano_route(
+    escribano_id: UUID,
+    payload: EscribanoUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Usuario = Depends(get_current_user),
+) -> EscribanoResponse:
+    try:
+        row = await update_monotributista(
+            db,
+            escribano_id,
+            monotributista=payload.monotributista,
+        )
+    except EscribanoNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return EscribanoResponse.from_orm_row(row)
 
 

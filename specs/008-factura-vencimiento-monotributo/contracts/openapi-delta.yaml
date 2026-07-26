@@ -1,0 +1,224 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Delta (feature 008-factura-vencimiento-monotributo)
+  description: |
+    Plazo de pago Total impuestos al Colegio (30 días), imputación en pagos_colegio,
+    flag monotributista en escribano, y recálculo IVA condicional.
+  version: 0.8.0
+
+servers:
+  - url: /api/v1
+
+components:
+  schemas:
+
+    ImputacionPagoColegio:
+      type: string
+      enum:
+        - total_impuestos
+        - honorarios_varios
+        - otro
+      description: |
+        total_impuestos — cuenta para plazo Corresponde.
+        honorarios_varios / otro — no afectan plazo de impuestos.
+
+    PlazoColegioEstado:
+      type: string
+      enum:
+        - no_aplica
+        - pendiente
+        - vencido
+        - pagado
+
+    PlazoColegioUrgencia:
+      type: string
+      nullable: true
+      enum:
+        - verde
+        - amarillo
+        - rojo
+        - null
+
+    PlazoColegioResponse:
+      type: object
+      required:
+        - estado
+        - monto_referencia
+        - monto_pagado
+        - monto_pendiente
+      properties:
+        estado:
+          $ref: '#/components/schemas/PlazoColegioEstado'
+        fecha_vencimiento:
+          type: string
+          format: date
+          nullable: true
+        dias_restantes:
+          type: integer
+          nullable: true
+          minimum: 0
+        urgencia:
+          $ref: '#/components/schemas/PlazoColegioUrgencia'
+        monto_referencia:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Total impuestos de la factura
+        monto_pagado:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Suma pagos_colegio con imputacion total_impuestos
+        monto_pendiente:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+
+    EscribanoResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - activo
+        - monotributista
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        activo:
+          type: boolean
+        monotributista:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time
+
+    EscribanoUpdateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - monotributista
+      properties:
+        monotributista:
+          type: boolean
+
+    PagoColegioInput:
+      type: object
+      additionalProperties: false
+      required:
+        - monto
+        - fecha
+        - imputacion
+      properties:
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        fecha:
+          type: string
+          format: date
+        concepto:
+          type: string
+          maxLength: 500
+          default: ""
+        imputacion:
+          $ref: '#/components/schemas/ImputacionPagoColegio'
+
+    PagoColegioResponse:
+      type: object
+      required:
+        - id
+        - escritura_id
+        - monto
+        - fecha
+        - concepto
+        - imputacion
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+        fecha:
+          type: string
+          format: date
+        concepto:
+          type: string
+        imputacion:
+          $ref: '#/components/schemas/ImputacionPagoColegio'
+        created_at:
+          type: string
+          format: date-time
+
+    EscrituraListItem:
+      type: object
+      description: Extended with plazo_colegio for Colegio payment deadline (null when cerrada).
+      properties:
+        plazo_colegio:
+          allOf:
+            - $ref: '#/components/schemas/PlazoColegioResponse'
+          nullable: true
+
+    EscrituraResponse:
+      type: object
+      description: Detail response includes plazo_colegio when escritura is abierta.
+      properties:
+        plazo_colegio:
+          allOf:
+            - $ref: '#/components/schemas/PlazoColegioResponse'
+          nullable: true
+
+paths:
+
+  /configuracion/escribanos/{escribano_id}:
+    patch:
+      summary: Update escribano configuration (monotributista)
+      operationId: updateEscribano
+      tags:
+        - escribanos
+      parameters:
+        - name: escribano_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscribanoUpdateRequest'
+      responses:
+        '200':
+          description: Updated escribano; open escrituras recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscribanoResponse'
+        '404':
+          description: Escribano not found or inactive
+
+  /escrituras/{escritura_id}/pagos-colegio:
+    post:
+      summary: Register pago al Colegio (imputacion required)
+      description: |
+        imputacion=total_impuestos counts toward 30-day Total impuestos deadline.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoColegioInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoColegioResponse'
+        '422':
+          description: Missing or invalid imputacion

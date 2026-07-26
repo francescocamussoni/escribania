@@ -4,6 +4,7 @@ import {
   useCreateEscribano,
   useDeactivateEscribano,
   useEscribanos,
+  useUpdateEscribano,
 } from "@/hooks/useEscribanos";
 import type { EscribanoResponse } from "@/types/api";
 import { friendlyApiError } from "@/utils/errors";
@@ -28,6 +29,7 @@ export function EscribanosConfig() {
   const { data, isLoading, error } = useEscribanos(true);
   const createMutation = useCreateEscribano();
   const deactivateMutation = useDeactivateEscribano();
+  const updateMutation = useUpdateEscribano();
 
   const [nombre, setNombre] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -63,6 +65,20 @@ export function EscribanosConfig() {
         return;
       }
       setActionError(friendlyApiError(err, "No se pudo desactivar el escribano."));
+    }
+  };
+
+  const handleMonotributistaToggle = async (escribano: EscribanoResponse, checked: boolean) => {
+    setActionError(null);
+    try {
+      await updateMutation.mutateAsync({
+        id: escribano.id,
+        payload: { monotributista: checked },
+      });
+    } catch (err) {
+      setActionError(
+        friendlyApiError(err, "No se pudo actualizar el régimen del escribano."),
+      );
     }
   };
 
@@ -105,18 +121,36 @@ export function EscribanosConfig() {
           <p className="page-muted">No hay escribanos configurados.</p>
         ) : (
           <div className="config-table">
-            <div className="config-table__header">
+            <div className="config-table__header config-table__header--escribanos">
               <span>Nombre</span>
               <span>Estado</span>
+              <span>Monotributista</span>
               <span>Acciones</span>
             </div>
             {escribanos.map((escribano) => (
-              <div key={escribano.id} className="config-table__row">
+              <div key={escribano.id} className="config-table__row config-table__row--escribanos">
                 <span>
                   {escribano.nombre}
                   {!escribano.activo ? <span className="badge badge--muted"> (inactivo)</span> : null}
                 </span>
                 <span>{escribano.activo ? "Activo" : "Inactivo"}</span>
+                <span>
+                  {escribano.activo ? (
+                    <label className="config-toggle">
+                      <input
+                        type="checkbox"
+                        checked={escribano.monotributista}
+                        disabled={updateMutation.isPending}
+                        onChange={(event) =>
+                          void handleMonotributistaToggle(escribano, event.target.checked)
+                        }
+                      />
+                      <span>{escribano.monotributista ? "Sí" : "No"}</span>
+                    </label>
+                  ) : (
+                    <span className="page-muted">—</span>
+                  )}
+                </span>
                 <span>
                   {escribano.activo ? (
                     <button

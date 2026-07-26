@@ -38,6 +38,7 @@ describe("useEscriturasListSession helpers", () => {
       escribanoFilter: "esc-123",
       estadoFilter: "abierta",
       searchQuery: "garcía",
+      sortField: "vencimiento",
       sortDirection: "asc",
       createdAtPeriod: { anio: 2026, mes: 3 },
     });
@@ -46,6 +47,7 @@ describe("useEscriturasListSession helpers", () => {
       escribanoFilter: "esc-123",
       estadoFilter: "abierta",
       searchQuery: "garcía",
+      sortField: "vencimiento",
       sortDirection: "asc",
       createdAtPeriod: { anio: 2026, mes: 3 },
     });
@@ -95,6 +97,7 @@ describe("useEscriturasListSession helpers", () => {
         escribanoFilter: 42,
         estadoFilter: "invalid",
         searchQuery: null,
+        sortField: "invalid",
         sortDirection: "sideways",
       }),
     );

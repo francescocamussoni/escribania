@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from schemas.common import MoneyStr
+from schemas.plazo_colegio import PlazoColegioResponse
 from schemas.factura import FacturaPrincipalResponse
 from schemas.impuesto import BalanceImpuestosResponse
 from schemas.pago_cliente import PagoClienteResponse
@@ -66,6 +67,7 @@ class EscrituraListItem(BaseModel):
     saldo_pendiente: MoneyStr
     pagada_al_100: bool
     sobrepago: bool
+    plazo_colegio: PlazoColegioResponse | None = None
 
 
 class EscrituraResponse(BaseModel):
@@ -91,5 +93,6 @@ class EscrituraResponse(BaseModel):
     sobrepago: bool
     total_leyes_notariales_proyectadas: MoneyStr
     balance_impuestos: BalanceImpuestosResponse | None = None
+    plazo_colegio: PlazoColegioResponse | None = None
     pagos_cliente: list[PagoClienteResponse] = Field(default_factory=list)
     pagos_colegio: list[PagoColegioResponse] = Field(default_factory=list)

@@ -52,6 +52,12 @@ function invalidateForEvent(
   if (gastoExtraordinarioRelated) {
     void queryClient.invalidateQueries({ queryKey: ["gastos-extraordinarios"] });
   }
+  if (eventType === "escribano.updated") {
+    void queryClient.invalidateQueries({ queryKey: ["escribanos"] });
+    void queryClient.invalidateQueries({ queryKey: ["escrituras"] });
+    void queryClient.invalidateQueries({ queryKey: ["liquidacion"] });
+    void queryClient.invalidateQueries({ queryKey: ["salarios"] });
+  }
 }
 
 export function useSSE(enabled = true): void {
@@ -96,6 +102,7 @@ export function useSSE(enabled = true): void {
         "gasto_extraordinario.deleted",
         "liquidacion.updated",
         "libros_updated",
+        "escribano.updated",
       ];
 
       for (const type of eventTypes) {

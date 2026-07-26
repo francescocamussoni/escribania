@@ -5,6 +5,7 @@ from typing import Any
 
 TWOPLACES = Decimal("0.01")
 IVA_PCT = Decimal("0.21")
+_ZERO = Decimal("0.00")
 
 GASTOS_EXCLUIDOS_TOTAL_PARCIAL = (
     "fotocopias_urgentes",
@@ -184,13 +185,18 @@ def calcular_totales_factura(
     total_impuestos: Decimal,
     total_gastos_admin: Decimal,
     gastos: dict[str, Decimal],
+    monotributista: bool = False,
 ) -> dict[str, Decimal]:
     dif_honorarios = _q(suma_hon_cert - aporte_12pct)
     excluded = sum(gastos[key] for key in GASTOS_EXCLUIDOS_TOTAL_PARCIAL)
     total_parcial = _q(dif_honorarios + total_gastos_admin - excluded)
     total_sin_iva = _q(total_parcial + subtotal_honorarios + total_impuestos)
-    iva = _q((dif_honorarios + total_impuestos) * IVA_PCT)
-    total_factura = _q(total_sin_iva + iva)
+    if monotributista:
+        iva = _ZERO
+        total_factura = total_sin_iva
+    else:
+        iva = _q((dif_honorarios + total_impuestos) * IVA_PCT)
+        total_factura = _q(total_sin_iva + iva)
     return {
         "dif_honorarios": dif_honorarios,
         "total_parcial": total_parcial,
@@ -205,6 +211,8 @@ def calcular_factura_completa(
     dolar_mep: Decimal,
     dolar_nacion: Decimal,
     config: ConfigCalculo,
+    *,
+    monotributista: bool = False,
 ) -> dict[str, Any]:
     monto_base_mep, precio_base_nacion = calcular_bases(usd_value, dolar_mep, dolar_nacion)
     honorarios = calcular_honorarios(monto_base_mep, config)
@@ -219,6 +227,7 @@ def calcular_factura_completa(
         total_impuestos=impuestos["total_impuestos"],
         total_gastos_admin=gastos["total_gastos_admin"],
         gastos=gastos,
+        monotributista=monotributista,
     )
 
     return {

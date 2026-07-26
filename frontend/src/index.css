@@ -3,6 +3,9 @@
   background: #f4f6fb;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   line-height: 1.5;
+  --color-success: #1b5e20;
+  --color-warning: #e65100;
+  --color-danger: #c62828;
 }
 
 * {
@@ -392,7 +395,7 @@ input {
 
 .escritura-list--saldo .escritura-list__header,
 .escritura-list--saldo .escritura-list__row {
-  grid-template-columns: 1.4fr 1fr 0.75fr 1fr 1fr 1fr 1fr 0.85fr;
+  grid-template-columns: 1.4fr 1fr 0.75fr 0.9fr 1fr 1fr 1fr 1fr 0.85fr;
 }
 
 .escritura-list__sortable {
@@ -669,6 +672,47 @@ input {
 .badge--extraordinario {
   background: #fff3e0;
   color: #e65100;
+}
+
+.plazo-colegio-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.plazo-colegio--verde {
+  background: #e8f5e9;
+  color: var(--color-success);
+}
+
+.plazo-colegio--amarillo {
+  background: #fff8e1;
+  color: var(--color-warning);
+}
+
+.plazo-colegio--rojo,
+.plazo-colegio--vencido {
+  background: #ffebee;
+  color: var(--color-danger);
+}
+
+.plazo-colegio--pagado {
+  background: #eceff1;
+  color: #455a64;
+}
+
+.plazo-colegio--na {
+  background: transparent;
+  color: #607d8b;
+  font-weight: 500;
+  padding: 0;
+}
+
+.pagos-list__row--4col {
+  grid-template-columns: 2fr 1.2fr 1fr 1fr;
 }
 
 .gasto-form__actions {
@@ -1176,6 +1220,17 @@ input {
 .config-table--empleados .config-table__header,
 .config-table--empleados .config-table__row {
   grid-template-columns: 1.2fr 1fr 1.8fr;
+}
+
+.config-table__header--escribanos,
+.config-table__row--escribanos {
+  grid-template-columns: 1.5fr 0.8fr 1fr 1fr;
+}
+
+.config-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .config-table__header {

@@ -105,7 +105,7 @@ async def test_get_libro_salida_returns_200_with_structure(
 
     pago = await auth_client.post(
         f"/api/v1/escrituras/{escritura.id}/pagos-colegio",
-        json={"monto": "25000.00", "fecha": PAGO_FECHA, "concepto": "Colegio API"},
+        json={"monto": "25000.00", "fecha": PAGO_FECHA, "concepto": "Colegio API", "imputacion": "honorarios_varios"},
     )
     assert pago.status_code == 201
 

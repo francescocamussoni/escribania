@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EstadoEscritura } from "@/types/api";
-import type { SortDirection } from "@/utils/escrituraList";
+import type { SortDirection, SortField } from "@/utils/escrituraList";
 
 export type EstadoFilter = "todas" | EstadoEscritura;
 /** `null` means no escribano filter (show all). */
@@ -18,6 +18,7 @@ export interface EscriturasListSessionState {
   escribanoFilter: EscribanoFilter;
   estadoFilter: EstadoFilter;
   searchQuery: string;
+  sortField: SortField;
   sortDirection: SortDirection;
   createdAtPeriod: CreatedAtPeriodFilter;
 }
@@ -28,6 +29,7 @@ export const DEFAULT_SESSION_STATE: EscriturasListSessionState = {
   escribanoFilter: null,
   estadoFilter: "todas",
   searchQuery: "",
+  sortField: "created_at",
   sortDirection: "desc",
   createdAtPeriod: null,
 };
@@ -38,6 +40,10 @@ function isEstadoFilter(value: unknown): value is EstadoFilter {
 
 function isSortDirection(value: unknown): value is SortDirection {
   return value === "asc" || value === "desc";
+}
+
+function isSortField(value: unknown): value is SortField {
+  return value === "created_at" || value === "vencimiento";
 }
 
 function isCreatedAtPeriod(value: unknown): value is CreatedAtPeriod {
@@ -92,6 +98,9 @@ export function loadEscriturasListSessionState(): EscriturasListSessionState {
         typeof parsed.searchQuery === "string"
           ? parsed.searchQuery
           : DEFAULT_SESSION_STATE.searchQuery,
+      sortField: isSortField(parsed.sortField)
+        ? parsed.sortField
+        : DEFAULT_SESSION_STATE.sortField,
       sortDirection: isSortDirection(parsed.sortDirection)
         ? parsed.sortDirection
         : DEFAULT_SESSION_STATE.sortDirection,
@@ -142,7 +151,22 @@ export function useEscriturasListSession() {
     setCreatedAtPeriod: (createdAtPeriod: CreatedAtPeriod) => update({ createdAtPeriod }),
     clearCreatedAtPeriod: () => update({ createdAtPeriod: null }),
     setSearchQuery: (searchQuery: string) => update({ searchQuery }),
+    setSortField: (sortField: SortField) => update({ sortField }),
     setSortDirection: (sortDirection: SortDirection) => update({ sortDirection }),
+    toggleSort: (field: SortField) =>
+      setState((prev) => {
+        if (prev.sortField === field) {
+          return {
+            ...prev,
+            sortDirection: prev.sortDirection === "desc" ? "asc" : "desc",
+          };
+        }
+        return {
+          ...prev,
+          sortField: field,
+          sortDirection: field === "vencimiento" ? "asc" : "desc",
+        };
+      }),
     toggleSortDirection: () =>
       setState((prev) => ({
         ...prev,

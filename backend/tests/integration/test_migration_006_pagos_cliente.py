@@ -95,7 +95,7 @@ async def test_migration_006_data_migration_roundtrip(db_engine: AsyncEngine) ->
     """Downgrade to 005, seed gastos + closed escritura, upgrade — verify migrated data."""
     from sqlalchemy import select
 
-    from tests.helpers.escritura_factory import insert_test_escritura
+    from tests.helpers.escritura_factory import insert_test_escritura_pre_009
 
     _run_alembic("downgrade", REVISION_005)
 
@@ -106,14 +106,14 @@ async def test_migration_006_data_migration_roundtrip(db_engine: AsyncEngine) ->
             )
             assert config_row is not None, "configuracion_financiera required for migration test"
 
-            escriba_abierta = await insert_test_escritura(
+            escriba_abierta = await insert_test_escritura_pre_009(
                 session,
                 config_row,
                 nombre="Migración abierta",
                 created_at=datetime(2026, 1, 10, tzinfo=UTC),
                 estado=EstadoEscritura.ABIERTA,
             )
-            escriba_cerrada = await insert_test_escritura(
+            escriba_cerrada = await insert_test_escritura_pre_009(
                 session,
                 config_row,
                 nombre="Migración cerrada",
@@ -186,7 +186,7 @@ async def test_migration_006_data_migration_roundtrip(db_engine: AsyncEngine) ->
             assert implicit.monto > 0
 
     finally:
-        _run_alembic("upgrade", REVISION_006)
+        _run_alembic("upgrade", "head")
 
 
 @pytest.mark.asyncio

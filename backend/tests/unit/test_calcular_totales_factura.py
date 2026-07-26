@@ -17,6 +17,14 @@ CANONICAL_TOTALES = {
     "total_factura": Decimal("11550066.53"),
 }
 
+CANONICAL_TOTALES_MONOTRIBUTO = {
+    "dif_honorarios": CANONICAL_TOTALES["dif_honorarios"],
+    "total_parcial": CANONICAL_TOTALES["total_parcial"],
+    "total_sin_iva": CANONICAL_TOTALES["total_sin_iva"],
+    "iva": Decimal("0.00"),
+    "total_factura": Decimal("9674809.01"),
+}
+
 CANONICAL_LINE_ITEMS = {
     "honorario_principal": Decimal("3654856.80"),
     "certificacion": Decimal("456857.10"),
@@ -75,6 +83,23 @@ def test_calcular_totales_factura_canonical_fixture(
         assert result[key] == expected
 
 
+def test_calcular_totales_factura_monotributista(
+    honorarios: dict[str, Decimal], gastos: dict[str, Decimal]
+) -> None:
+    result = calcular_totales_factura(
+        suma_hon_cert=honorarios["suma_hon_cert"],
+        aporte_12pct=honorarios["aporte_12pct"],
+        subtotal_honorarios=honorarios["subtotal_honorarios"],
+        total_impuestos=CANONICAL_LINE_ITEMS["total_impuestos"],
+        total_gastos_admin=gastos["total_gastos_admin"],
+        gastos=gastos,
+        monotributista=True,
+    )
+    for key, expected in CANONICAL_TOTALES_MONOTRIBUTO.items():
+        assert result[key] == expected
+    assert result["total_factura"] == result["total_sin_iva"]
+
+
 def test_total_parcial_excludes_gastos_admin_items(gastos: dict[str, Decimal]) -> None:
     excluded_sum = sum(gastos[k] for k in GASTOS_EXCLUIDOS_TOTAL_PARCIAL)
     result = calcular_totales_factura(
@@ -112,3 +137,16 @@ def test_calcular_factura_completa_line_items_unchanged() -> None:
     )
     for key, expected in CANONICAL_LINE_ITEMS.items():
         assert result[key] == expected
+
+
+def test_calcular_factura_completa_monotributista_totales() -> None:
+    result = calcular_factura_completa(
+        Decimal("105000.00"),
+        Decimal("1450.34"),
+        Decimal("1425.00"),
+        canonical_config(),
+        monotributista=True,
+    )
+    assert result["iva"] == Decimal("0.00")
+    assert result["total_factura"] == Decimal("9674809.01")
+    assert result["total_factura"] == result["total_sin_iva"]

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.escribano import Escribano
 from models.escritura import Escritura
+from events.publisher import publish
 from services.escribano_errors import (
     EscribanoDuplicateError,
     EscribanoHasEscriturasError,
@@ -52,7 +53,7 @@ async def create(session: AsyncSession, nombre: str) -> Escribano:
     if await _active_name_exists(session, trimmed):  # BR-ESC-001
         raise EscribanoDuplicateError("An active escribano with this name already exists")
 
-    escribano = Escribano(id=uuid.uuid4(), nombre=trimmed)
+    escribano = Escribano(id=uuid.uuid4(), nombre=trimmed, monotributista=False)
     session.add(escribano)
     await session.commit()
     await session.refresh(escribano)
@@ -82,3 +83,31 @@ async def soft_delete(
 
     escribano.soft_delete()  # BR003
     await session.commit()
+
+
+async def update_monotributista(
+    session: AsyncSession,
+    escribano_id: uuid.UUID,
+    *,
+    monotributista: bool,
+) -> Escribano:
+    escribano = await get_active_by_id(session, escribano_id)
+    if escribano.monotributista == monotributista:
+        return escribano
+
+    escribano.monotributista = monotributista
+    await session.flush()
+
+    from services.escritura_service import recalcular_escrituras_abiertas_escribano
+
+    await recalcular_escrituras_abiertas_escribano(
+        session,
+        escribano_id,
+        monotributista=monotributista,
+    )
+    await session.commit()
+    await session.refresh(escribano)
+
+    await publish("escribano.updated", {"escribano_id": str(escribano_id)})
+
+    return escribano

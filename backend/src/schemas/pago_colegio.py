@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from schemas.common import MoneyStr
+from schemas.plazo_colegio import ImputacionPagoColegio
 
 
 class PagoColegioInput(BaseModel):
@@ -13,6 +14,7 @@ class PagoColegioInput(BaseModel):
     monto: Decimal = Field(gt=0)
     fecha: date
     concepto: str = Field(default="", max_length=500)
+    imputacion: ImputacionPagoColegio
 
     @field_validator("monto", mode="before")
     @classmethod
@@ -32,4 +34,5 @@ class PagoColegioResponse(BaseModel):
     monto: MoneyStr
     fecha: date
     concepto: str
+    imputacion: ImputacionPagoColegio
     created_at: datetime

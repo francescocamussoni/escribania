@@ -1,7 +1,10 @@
-import type { EscrituraListItem, EscribanoResponse } from "@/types/api";
+import type { EscrituraListItem, EscribanoResponse, PlazoColegioEstado } from "@/types/api";
 
-/** Sort order for escritura list by creation timestamp. */
+/** Sort order for escritura list columns. */
 export type SortDirection = "asc" | "desc";
+
+/** Client-side sort field for the escrituras list. */
+export type SortField = "created_at" | "vencimiento";
 
 export interface EscritanoFilterOption {
   id: string;
@@ -42,6 +45,54 @@ export function sortByCreatedAt(
     return a.created_at.localeCompare(b.created_at);
   });
   return direction === "desc" ? sorted.reverse() : sorted;
+}
+
+function isTerminalPlazo(estado: PlazoColegioEstado): boolean {
+  return estado === "pagado" || estado === "no_aplica";
+}
+
+/**
+ * Returns a new array sorted by plazo_colegio.fecha_vencimiento.
+ * Rows with estado pagado or no_aplica (or without fecha_vencimiento) stay at the end.
+ * Stable secondary order by id within each group.
+ */
+export function sortByVencimiento(
+  items: EscrituraListItem[],
+  direction: SortDirection,
+): EscrituraListItem[] {
+  const active: EscrituraListItem[] = [];
+  const terminal: EscrituraListItem[] = [];
+
+  for (const item of items) {
+    if (!item.plazo_colegio) {
+      terminal.push(item);
+      continue;
+    }
+    const { estado, fecha_vencimiento } = item.plazo_colegio;
+    if (isTerminalPlazo(estado) || !fecha_vencimiento) {
+      terminal.push(item);
+    } else {
+      active.push(item);
+    }
+  }
+
+  const compareByVencimiento = (a: EscrituraListItem, b: EscrituraListItem) => {
+    const timeA = new Date(a.plazo_colegio.fecha_vencimiento!).getTime();
+    const timeB = new Date(b.plazo_colegio.fecha_vencimiento!).getTime();
+    if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA !== timeB) {
+      return timeA - timeB;
+    }
+    return a.plazo_colegio.fecha_vencimiento!.localeCompare(b.plazo_colegio.fecha_vencimiento!);
+  };
+
+  active.sort(compareByVencimiento);
+  if (direction === "desc") {
+    active.reverse();
+  }
+
+  terminal.sort((a, b) => a.id.localeCompare(b.id));
+
+  return [...active, ...terminal];
 }
 
 /**

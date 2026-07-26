@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import extract, select
@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from models.configuracion import ConfiguracionFinanciera
+from models.escribano import Escribano
 from models.escritura import Escritura, EstadoEscritura
 from services.escribano_errors import EscribanoNotFoundError
 from services.escribano_service import get_active_by_id
 from models.factura_principal import FacturaPrincipal
 from schemas.escritura import EscrituraInput, EscrituraUpdate
+from schemas.plazo_colegio import PlazoColegioResponse
 from events.publisher import publish
 from services.calculo_factura import ConfigCalculo, calcular_factura_completa
 from services.escritura_errors import (
@@ -25,6 +27,7 @@ from services.escritura_errors import (
 )
 from services.impuesto_service import get_balance_impuestos
 from services.pago_saldo import calc_saldo, can_close, is_sobrepago
+from services.plazo_colegio import calcular_plazo_colegio, sum_pagos_impuestos
 
 FACTURA_CALC_FIELDS = (
     "monto_base_mep",
@@ -156,6 +159,35 @@ def total_pagado_from_escritura(escritura: Escritura) -> Decimal:
     return total.quantize(Decimal("0.01"))
 
 
+def build_plazo_colegio_fields(
+    escritura: Escritura,
+    *,
+    fecha_referencia: date | None = None,
+) -> PlazoColegioResponse | None:
+    if escritura.estado == EstadoEscritura.CERRADA:
+        return None
+    if escritura.factura is None:
+        raise RuntimeError("Escritura has no factura principal")
+
+    ref = fecha_referencia or date.today()
+    monto_pagado = sum_pagos_impuestos(escritura.pagos_colegio)
+    result = calcular_plazo_colegio(
+        fecha_creacion=escritura.created_at.date(),
+        total_impuestos=escritura.factura.total_impuestos,
+        monto_pagado_impuestos=monto_pagado,
+        fecha_referencia=ref,
+    )
+    return PlazoColegioResponse.from_calculation(
+        estado=result.estado,
+        fecha_vencimiento=result.fecha_vencimiento,
+        dias_restantes=result.dias_restantes,
+        urgencia=result.urgencia,
+        monto_referencia=result.monto_referencia,
+        monto_pagado=result.monto_pagado,
+        monto_pendiente=result.monto_pendiente,
+    )
+
+
 def build_saldo_fields(escritura: Escritura) -> dict[str, Decimal | bool]:
     if escritura.factura is None:
         raise RuntimeError("Escritura has no factura principal")
@@ -189,6 +221,7 @@ async def create_escritura(session: AsyncSession, payload: EscrituraInput) -> Es
         payload.dolar_mep,
         payload.dolar_nacion,
         config,
+        monotributista=escribano.monotributista,
     )
 
     escritura = Escritura(
@@ -245,6 +278,50 @@ async def list_escrituras(
     return list((await session.scalars(stmt)).all())
 
 
+async def recalcular_escrituras_abiertas_escribano(
+    session: AsyncSession,
+    escribano_id: uuid.UUID,
+    *,
+    monotributista: bool,
+) -> list[uuid.UUID]:
+    escrituras = list(
+        (
+            await session.scalars(
+                select(Escritura)
+                .options(selectinload(Escritura.factura))
+                .where(
+                    Escritura.escribano_id == escribano_id,
+                    Escritura.estado == EstadoEscritura.ABIERTA,
+                )
+            )
+        ).all()
+    )
+    updated_ids: list[uuid.UUID] = []
+    for escritura in escrituras:
+        if escritura.factura is None:
+            continue
+        config_row = await session.get(ConfiguracionFinanciera, escritura.config_version_id)
+        if config_row is None:
+            continue
+        calc = calcular_factura_completa(
+            escritura.usd_value,
+            escritura.dolar_mep,
+            escritura.dolar_nacion,
+            config_from_row(config_row),
+            monotributista=monotributista,
+        )
+        _apply_calc_to_factura(escritura.factura, calc)
+        updated_ids.append(escritura.id)
+
+    for updated_id in updated_ids:
+        updated_id_str = str(updated_id)
+        await publish("escritura.updated", {"escritura_id": updated_id_str})
+        await publish("liquidacion.updated", {"escritura_id": updated_id_str})
+        await publish("libros_updated", {"escritura_id": updated_id_str})
+
+    return updated_ids
+
+
 async def update_escritura(
     session: AsyncSession,
     escritura_id: uuid.UUID,
@@ -266,6 +343,10 @@ async def update_escritura(
     if payload.dolar_nacion is not None:
         escritura.dolar_nacion = payload.dolar_nacion
 
+    escribano = await session.get(Escribano, escritura.escribano_id)
+    if escribano is None:
+        raise RuntimeError("Escribano not found for escritura")
+
     config_row = await session.get(ConfiguracionFinanciera, escritura.config_version_id)
     if config_row is None:
         raise RuntimeError("Configuration version not found for escritura")
@@ -275,6 +356,7 @@ async def update_escritura(
         escritura.dolar_mep,
         escritura.dolar_nacion,
         config_from_row(config_row),
+        monotributista=escribano.monotributista,
     )
     _apply_calc_to_factura(escritura.factura, calc)
     await session.commit()

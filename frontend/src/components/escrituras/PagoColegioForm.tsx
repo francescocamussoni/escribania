@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
-import type { PagoColegioInput } from "@/types/api";
+import type { ImputacionPagoColegio, PagoColegioInput } from "@/types/api";
+import { IMPUTACION_PAGO_COLEGIO_OPTIONS } from "@/utils/imputacionColegio";
 import { friendlyApiError } from "@/utils/errors";
 
 interface PagoColegioFormProps {
@@ -14,6 +15,7 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(todayIsoDate());
+  const [imputacion, setImputacion] = useState<ImputacionPagoColegio>("total_impuestos");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,10 +28,12 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
         concepto: concepto.trim(),
         monto,
         fecha,
+        imputacion,
       });
       setConcepto("");
       setMonto("");
       setFecha(todayIsoDate());
+      setImputacion("total_impuestos");
     } catch (err) {
       setError(friendlyApiError(err, "No se pudo registrar el pago de la escribanía."));
     } finally {
@@ -41,6 +45,20 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
     <form className="gasto-form" onSubmit={handleSubmit}>
       <h3 className="gasto-form__title">Registrar pago de la escribanía</h3>
       <div className="gasto-form__grid">
+        <label className="field">
+          <span>Imputación</span>
+          <select
+            value={imputacion}
+            onChange={(e) => setImputacion(e.target.value as ImputacionPagoColegio)}
+            required
+          >
+            {IMPUTACION_PAGO_COLEGIO_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="field">
           <span>Concepto</span>
           <input

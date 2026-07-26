@@ -24,6 +24,7 @@ from services.escritura_errors import (
     EscrituraSaldoPendienteError,
 )
 from services.escritura_service import (
+    build_plazo_colegio_fields,
     build_saldo_fields,
     close_escritura,
     create_escritura,
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/escrituras", tags=["escrituras"])
 
 def _to_response(escritura, *, balance_impuestos=None) -> EscrituraResponse:
     saldo = build_saldo_fields(escritura)
+    plazo = build_plazo_colegio_fields(escritura)
     return EscrituraResponse(
         id=escritura.id,
         nombre=escritura.nombre,
@@ -59,6 +61,7 @@ def _to_response(escritura, *, balance_impuestos=None) -> EscrituraResponse:
         sobrepago=saldo["sobrepago"],
         total_leyes_notariales_proyectadas=saldo["total_leyes_notariales_proyectadas"],
         balance_impuestos=balance_impuestos,
+        plazo_colegio=plazo,
         pagos_cliente=[
             PagoClienteResponse.model_validate(pago) for pago in escritura.pagos_cliente
         ],
@@ -90,6 +93,7 @@ async def list_escrituras_route(
     items: list[EscrituraListItem] = []
     for escritura in escrituras:
         saldo = build_saldo_fields(escritura)
+        plazo = build_plazo_colegio_fields(escritura)
         items.append(
             EscrituraListItem(
                 id=escritura.id,
@@ -104,6 +108,7 @@ async def list_escrituras_route(
                 saldo_pendiente=saldo["saldo_pendiente"],
                 pagada_al_100=saldo["pagada_al_100"],
                 sobrepago=saldo["sobrepago"],
+                plazo_colegio=plazo,
             )
         )
     return items

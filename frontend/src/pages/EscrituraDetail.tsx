@@ -9,6 +9,7 @@ import { PagoClienteForm } from "@/components/escrituras/PagoClienteForm";
 import { PagoClienteList } from "@/components/escrituras/PagoClienteList";
 import { PagoColegioForm } from "@/components/escrituras/PagoColegioForm";
 import { PagoColegioList } from "@/components/escrituras/PagoColegioList";
+import { PlazoColegioBadge } from "@/components/escrituras/PlazoColegioBadge";
 import { useCloseEscritura, useEscritura, usePatchEscritura } from "@/hooks/useEscrituras";
 import { useCreateImpuesto, useImpuestos } from "@/hooks/useImpuestos";
 import { useCreatePagoCliente } from "@/hooks/usePagosCliente";
@@ -20,7 +21,7 @@ import {
   closeEscrituraSaldoMessage,
   friendlyApiError,
 } from "@/utils/errors";
-import { formatDate, formatMoney, formatCobroPercent, displayEscribanoNombre, labelEstado } from "@/utils/format";
+import { formatDate, formatDateOnly, formatMoney, formatCobroPercent, displayEscribanoNombre, labelEstado } from "@/utils/format";
 import { labelTipoImpuesto } from "@/utils/impuesto";
 
 function hasSaldoPendiente(saldo: string): boolean {
@@ -118,6 +119,15 @@ export function EscrituraDetail() {
             )}{" "}
             ·{" "}
             <span className={`badge badge--${escritura.estado}`}>{labelEstado(escritura.estado)}</span>
+            {escritura.plazo_colegio ? (
+              <>
+                {" · "}
+                <PlazoColegioBadge plazo={escritura.plazo_colegio} />
+                {escritura.plazo_colegio.fecha_vencimiento ? (
+                  <> · Vence {formatDateOnly(escritura.plazo_colegio.fecha_vencimiento)}</>
+                ) : null}
+              </>
+            ) : null}
             {escritura.closed_at ? ` · Cerrada ${formatDate(escritura.closed_at)}` : null}
           </p>
         </div>

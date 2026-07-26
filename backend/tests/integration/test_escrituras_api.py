@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -49,6 +50,14 @@ def _assert_saldo_abierta_sin_pagos(body: dict) -> None:
     assert body["sobrepago"] is False
     assert body["pagos_cliente"] == []
     assert body["pagos_colegio"] == []
+    plazo = body["plazo_colegio"]
+    assert plazo["monto_referencia"] == EXPECTED_FACTURA["total_impuestos"]
+    assert plazo["monto_pagado"] == "0.00"
+    assert plazo["monto_pendiente"] == EXPECTED_FACTURA["total_impuestos"]
+    assert plazo["estado"] == "pendiente"
+    assert plazo["dias_restantes"] is not None
+    assert 0 <= plazo["dias_restantes"] <= 30
+    assert plazo["urgencia"] in {"verde", "amarillo", "rojo"}
     factura = body["factura"]
     assert Decimal(factura["total_factura"]) == Decimal(factura["total_sin_iva"]) + Decimal(
         factura["iva"]
@@ -61,7 +70,7 @@ async def _create_escritura(
     cleanup_escrituras: list,
     *,
     nombre: str = "Compraventa Calle Falsa 123",
-    escribano: str = "costanza",
+    escribano: str = "gabriel",
 ) -> dict:
     response = await auth_client.post(
         "/api/v1/escrituras",
@@ -90,7 +99,7 @@ async def test_create_escritura_calculates_factura(
 ) -> None:
     body = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
     assert body["estado"] == "abierta"
-    assert body["escribano_nombre"] == "Costanza"
+    assert body["escribano_nombre"] == "Gabriel"
     _assert_saldo_abierta_sin_pagos(body)
     _assert_canonical_factura(body["factura"])
 
@@ -133,6 +142,63 @@ async def test_list_escrituras_with_filters(
     )
     assert by_month.status_code == 200
     assert any(item["id"] == costanza["id"] for item in by_month.json())
+
+
+@pytest.mark.asyncio
+async def test_list_escrituras_includes_plazo_colegio(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    response = await auth_client.get("/api/v1/escrituras")
+    assert response.status_code == 200
+    item = next(row for row in response.json() if row["id"] == created["id"])
+    plazo = item["plazo_colegio"]
+    assert plazo["monto_referencia"] == EXPECTED_FACTURA["total_impuestos"]
+    assert plazo["estado"] == "pendiente"
+    assert plazo["fecha_vencimiento"] is not None
+    created_date = date.fromisoformat(created["created_at"][:10])
+    assert plazo["fecha_vencimiento"] == (created_date + timedelta(days=30)).isoformat()
+
+
+@pytest.mark.asyncio
+async def test_detail_plazo_colegio_matches_list(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    list_response = await auth_client.get("/api/v1/escrituras")
+    assert list_response.status_code == 200
+    list_item = next(row for row in list_response.json() if row["id"] == created["id"])
+
+    detail_response = await auth_client.get(f"/api/v1/escrituras/{created['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["plazo_colegio"] == list_item["plazo_colegio"]
+
+
+@pytest.mark.asyncio
+async def test_closed_escritura_plazo_colegio_is_null(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    await _pay_full(auth_client, created["id"], created["costo_total"])
+    close_response = await auth_client.post(f"/api/v1/escrituras/{created['id']}/close")
+    assert close_response.status_code == 200
+
+    detail_response = await auth_client.get(f"/api/v1/escrituras/{created['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["plazo_colegio"] is None
+
+    list_response = await auth_client.get("/api/v1/escrituras")
+    list_item = next(row for row in list_response.json() if row["id"] == created["id"])
+    assert list_item["plazo_colegio"] is None
 
 
 @pytest.mark.asyncio

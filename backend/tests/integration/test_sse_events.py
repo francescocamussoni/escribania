@@ -109,7 +109,7 @@ async def test_sse_pago_colegio_created(
     try:
         response = await auth_client.post(
             f"/api/v1/escrituras/{escritura_id}/pagos-colegio",
-            json={"monto": "75000.00", "fecha": PAGO_FECHA, "concepto": "Aporte"},
+            json={"monto": "75000.00", "fecha": PAGO_FECHA, "concepto": "Aporte", "imputacion": "honorarios_varios"},
         )
         assert response.status_code == 201
         pago_id = response.json()["id"]

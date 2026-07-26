@@ -1,4 +1,4 @@
-.PHONY: install setup migrate seed demo-data user test run demo smoke frontend-install frontend-dev
+.PHONY: install setup migrate seed demo-data clean-non-demo user test run demo smoke frontend-install frontend-dev
 
 export PYTHONPATH := src
 
@@ -19,6 +19,9 @@ seed:
 
 demo-data:
 	SEED_DEMO_DATA=true $(PYTHON) scripts/seed_demo_data.py
+
+clean-non-demo:
+	$(PYTHON) scripts/cleanup_non_demo_data.py
 
 user:
 	$(PYTHON) scripts/create_user.py --username admin --password tu-password --nombre-display "Admin"

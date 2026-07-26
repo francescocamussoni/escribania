@@ -10,6 +10,7 @@ from events.publisher import publish
 from models.escritura import Escritura, EstadoEscritura
 from models.pago_colegio import PagoColegio
 from schemas.pago_colegio import PagoColegioInput
+from models.pago_colegio import ImputacionPagoColegio
 from services.escritura_errors import EscrituraClosedError, EscrituraNotFoundError
 
 
@@ -34,6 +35,16 @@ async def sum_pagos(session: AsyncSession, escritura_id: uuid.UUID) -> Decimal:
     return Decimal(str(total))
 
 
+async def sum_pagos_impuestos(session: AsyncSession, escritura_id: uuid.UUID) -> Decimal:
+    total = await session.scalar(
+        select(func.coalesce(func.sum(PagoColegio.monto), 0)).where(
+            PagoColegio.escritura_id == escritura_id,
+            PagoColegio.imputacion == ImputacionPagoColegio.TOTAL_IMPUESTOS,
+        )
+    )
+    return Decimal(str(total)).quantize(Decimal("0.01"))
+
+
 async def create_pago(
     session: AsyncSession,
     escritura_id: uuid.UUID,
@@ -48,6 +59,7 @@ async def create_pago(
         monto=payload.monto,
         fecha=payload.fecha,
         concepto=payload.concepto,
+        imputacion=payload.imputacion,
     )
     session.add(pago)
     await session.commit()
