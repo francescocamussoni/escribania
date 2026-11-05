@@ -1,8 +1,9 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from schemas.common import MoneyStr
 from schemas.plazo_colegio import PlazoColegioResponse
@@ -10,6 +11,7 @@ from schemas.factura import FacturaPrincipalResponse
 from schemas.impuesto import BalanceImpuestosResponse
 from schemas.pago_cliente import PagoClienteResponse
 from schemas.pago_colegio import PagoColegioResponse
+from services.factura_lineas import FACTURA_LINEA_KEYS
 
 
 class EscrituraInput(BaseModel):
@@ -39,6 +41,7 @@ class EscrituraUpdate(BaseModel):
     usd_value: Decimal | None = Field(default=None, gt=0)
     dolar_mep: Decimal | None = Field(default=None, gt=0)
     dolar_nacion: Decimal | None = Field(default=None, gt=0)
+    lineas_deshabilitadas: list[str] | None = None
 
     @field_validator("usd_value", "dolar_mep", "dolar_nacion", mode="before")
     @classmethod
@@ -50,6 +53,17 @@ class EscrituraUpdate(BaseModel):
         if isinstance(value, (int, float, Decimal)):
             return Decimal(str(value))
         raise TypeError("invalid decimal value")
+
+    @model_validator(mode="after")
+    def validate_lineas_deshabilitadas(self) -> Self:
+        if self.lineas_deshabilitadas is None:
+            return self
+        unknown = set(self.lineas_deshabilitadas) - set(FACTURA_LINEA_KEYS)
+        if unknown:
+            raise ValueError(f"Unknown line keys: {sorted(unknown)}")
+        if len(self.lineas_deshabilitadas) >= len(FACTURA_LINEA_KEYS):
+            raise ValueError("At least one invoice line must remain enabled")
+        return self
 
 
 class EscrituraListItem(BaseModel):

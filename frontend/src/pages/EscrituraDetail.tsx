@@ -196,7 +196,17 @@ export function EscrituraDetail() {
       <div className="escritura-detail__grid">
         <section className="detail-card escritura-detail__factura">
           <h2>Factura principal</h2>
-          <FacturaDetalle factura={escritura.factura} />
+          <FacturaDetalle
+            factura={escritura.factura}
+            readOnly={isClosed}
+            onLineasChange={
+              isClosed
+                ? undefined
+                : async (lineas_deshabilitadas) => {
+                    await patchMutation.mutateAsync({ lineas_deshabilitadas });
+                  }
+            }
+          />
         </section>
 
         <div className="escritura-detail__pagos-col">

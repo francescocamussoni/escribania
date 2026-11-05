@@ -15,9 +15,15 @@ from services.escribano_errors import EscribanoNotFoundError
 from services.escribano_service import get_active_by_id
 from models.factura_principal import FacturaPrincipal
 from schemas.escritura import EscrituraInput, EscrituraUpdate
+from schemas.factura import FacturaLineaItem, FacturaLineaSeccion, FacturaPrincipalResponse
 from schemas.plazo_colegio import PlazoColegioResponse
 from events.publisher import publish
 from services.calculo_factura import ConfigCalculo, calcular_factura_completa
+from services.factura_lineas import (
+    FacturaEfectiva,
+    LineasFacturaValidationError,
+    aplicar_lineas_habilitadas,
+)
 from services.escritura_errors import (
     EscrituraClosedError,
     EscrituraImpuestosBalanceError,
@@ -27,7 +33,7 @@ from services.escritura_errors import (
 )
 from services.impuesto_service import get_balance_impuestos
 from services.pago_saldo import calc_saldo, can_close, is_sobrepago
-from services.plazo_colegio import calcular_plazo_colegio, sum_pagos_impuestos
+from services.plazo_colegio import calcular_plazo_colegio, sum_pagos_colegio
 
 FACTURA_CALC_FIELDS = (
     "monto_base_mep",
@@ -71,6 +77,54 @@ FACTURA_CALC_FIELDS = (
 )
 
 _ZERO = Decimal("0.00")
+
+_SECCION_API_MAP: dict[str, FacturaLineaSeccion] = {
+    "honorarios": "honorarios",
+    "leyes_notariales": "honorarios_varios",
+    "impuestos": "impuestos",
+    "gastos_admin": "gastos_admin",
+}
+
+
+def _factura_to_calculo_dict(factura: FacturaPrincipal) -> dict[str, Decimal]:
+    return {field: getattr(factura, field) for field in FACTURA_CALC_FIELDS}
+
+
+def compute_factura_efectiva(factura: FacturaPrincipal) -> FacturaEfectiva:
+    lineas_deshabilitadas = list(factura.lineas_deshabilitadas or [])
+    return aplicar_lineas_habilitadas(_factura_to_calculo_dict(factura), lineas_deshabilitadas)
+
+
+def build_factura_response(factura: FacturaPrincipal) -> FacturaPrincipalResponse:
+    efectiva = compute_factura_efectiva(factura)
+    lineas = [
+        FacturaLineaItem(
+            key=item.key,
+            label=item.label,
+            monto=item.monto,
+            monto_efectivo=item.monto_efectivo,
+            habilitada=item.habilitada,
+            seccion=_SECCION_API_MAP[item.seccion],
+        )
+        for item in efectiva.lineas
+    ]
+    return FacturaPrincipalResponse(
+        id=factura.id,
+        escritura_id=factura.escritura_id,
+        **{field: getattr(factura, field) for field in FACTURA_CALC_FIELDS},
+        updated_at=factura.updated_at,
+        lineas_deshabilitadas=list(factura.lineas_deshabilitadas or []),
+        lineas=lineas,
+        total_impuestos_efectivo=efectiva.total_impuestos_efectivo,
+    )
+
+
+def _set_lineas_deshabilitadas(factura: FacturaPrincipal, lineas: list[str]) -> None:
+    try:
+        aplicar_lineas_habilitadas(_factura_to_calculo_dict(factura), lineas)
+    except LineasFacturaValidationError as exc:
+        raise ValueError(str(exc)) from exc
+    factura.lineas_deshabilitadas = list(lineas)
 
 
 def config_from_row(row: ConfiguracionFinanciera) -> ConfigCalculo:
@@ -170,10 +224,11 @@ def build_plazo_colegio_fields(
         raise RuntimeError("Escritura has no factura principal")
 
     ref = fecha_referencia or date.today()
-    monto_pagado = sum_pagos_impuestos(escritura.pagos_colegio)
+    efectiva = compute_factura_efectiva(escritura.factura)
+    monto_pagado = sum_pagos_colegio(escritura.pagos_colegio)
     result = calcular_plazo_colegio(
         fecha_creacion=escritura.created_at.date(),
-        total_impuestos=escritura.factura.total_impuestos,
+        total_impuestos=efectiva.total_impuestos_efectivo,
         monto_pagado_impuestos=monto_pagado,
         fecha_referencia=ref,
     )
@@ -192,7 +247,8 @@ def build_saldo_fields(escritura: Escritura) -> dict[str, Decimal | bool]:
     if escritura.factura is None:
         raise RuntimeError("Escritura has no factura principal")
 
-    costo_total = escritura.factura.total_factura
+    efectiva = compute_factura_efectiva(escritura.factura)
+    costo_total = efectiva.total_factura_efectivo
     total_pagado = total_pagado_from_escritura(escritura)
     saldo_pendiente = calc_saldo(costo_total, total_pagado)
     return {
@@ -330,40 +386,60 @@ async def update_escritura(
     escritura = await _get_escritura_or_404(session, escritura_id)
     _ensure_open(escritura)
 
+    lineas_changed = False
+    if payload.lineas_deshabilitadas is not None:
+        _set_lineas_deshabilitadas(escritura.factura, payload.lineas_deshabilitadas)
+        lineas_changed = True
+
     if payload.nombre is not None:
         escritura.nombre = payload.nombre
-    if payload.escribano_id is not None:
-        escribano = await _resolve_escribano(session, payload.escribano_id)
-        escritura.escribano_id = escribano.id
-        escritura.escribano_nombre = escribano.nombre
-    if payload.usd_value is not None:
-        escritura.usd_value = payload.usd_value
-    if payload.dolar_mep is not None:
-        escritura.dolar_mep = payload.dolar_mep
-    if payload.dolar_nacion is not None:
-        escritura.dolar_nacion = payload.dolar_nacion
 
-    escribano = await session.get(Escribano, escritura.escribano_id)
-    if escribano is None:
-        raise RuntimeError("Escribano not found for escritura")
-
-    config_row = await session.get(ConfiguracionFinanciera, escritura.config_version_id)
-    if config_row is None:
-        raise RuntimeError("Configuration version not found for escritura")
-
-    calc = calcular_factura_completa(
-        escritura.usd_value,
-        escritura.dolar_mep,
-        escritura.dolar_nacion,
-        config_from_row(config_row),
-        monotributista=escribano.monotributista,
+    recalc_needed = any(
+        field is not None
+        for field in (payload.escribano_id, payload.usd_value, payload.dolar_mep, payload.dolar_nacion)
     )
-    _apply_calc_to_factura(escritura.factura, calc)
+
+    if recalc_needed:
+        if payload.escribano_id is not None:
+            escribano = await _resolve_escribano(session, payload.escribano_id)
+            escritura.escribano_id = escribano.id
+            escritura.escribano_nombre = escribano.nombre
+        if payload.usd_value is not None:
+            escritura.usd_value = payload.usd_value
+        if payload.dolar_mep is not None:
+            escritura.dolar_mep = payload.dolar_mep
+        if payload.dolar_nacion is not None:
+            escritura.dolar_nacion = payload.dolar_nacion
+
+        escribano = await session.get(Escribano, escritura.escribano_id)
+        if escribano is None:
+            raise RuntimeError("Escribano not found for escritura")
+
+        config_row = await session.get(ConfiguracionFinanciera, escritura.config_version_id)
+        if config_row is None:
+            raise RuntimeError("Configuration version not found for escritura")
+
+        calc = calcular_factura_completa(
+            escritura.usd_value,
+            escritura.dolar_mep,
+            escritura.dolar_nacion,
+            config_from_row(config_row),
+            monotributista=escribano.monotributista,
+        )
+        _apply_calc_to_factura(escritura.factura, calc)
+        if escritura.factura.lineas_deshabilitadas:
+            _set_lineas_deshabilitadas(
+                escritura.factura,
+                list(escritura.factura.lineas_deshabilitadas),
+            )
+
     await session.commit()
 
-    await publish("escritura.updated", {"escritura_id": str(escritura_id)})
-    await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
-    await publish("libros_updated", {"escritura_id": str(escritura_id)})
+    if lineas_changed or recalc_needed or payload.nombre is not None:
+        await publish("escritura.updated", {"escritura_id": str(escritura_id)})
+    if recalc_needed or payload.nombre is not None:
+        await publish("liquidacion.updated", {"escritura_id": str(escritura_id)})
+        await publish("libros_updated", {"escritura_id": str(escritura_id)})
 
     return await _get_escritura_or_404(session, escritura_id)
 

@@ -10,7 +10,7 @@ from models.escritura import EstadoEscritura
 from models.gasto_extraordinario import GastoExtraordinario
 from models.impuesto_escritura import DireccionProrrateo, TipoImpuesto
 from models.pago_cliente import PagoCliente
-from models.pago_colegio import ImputacionPagoColegio, PagoColegio
+from models.pago_colegio import PagoColegio, TipoPagoEscribania
 from schemas.impuesto import ImpuestoInput, PagoImpuestoInput
 from services.impuesto_service import create_impuesto
 from services.libros_service import get_libro_entrada, get_libro_salida
@@ -74,6 +74,7 @@ async def _insert_pago_colegio(
     concepto: str,
     monto: Decimal,
     fecha: date,
+    tipo: TipoPagoEscribania = TipoPagoEscribania.COLEGIO,
 ) -> PagoColegio:
     pago = PagoColegio(
         id=uuid.uuid4(),
@@ -81,7 +82,7 @@ async def _insert_pago_colegio(
         concepto=concepto,
         monto=monto,
         fecha=fecha,
-        imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+        tipo=tipo,
     )
     session.add(pago)
     await session.commit()
@@ -543,7 +544,7 @@ async def test_libro_entrada_impuesto_moves_when_payment_date_changes(
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_includes_pago_impuesto_escribania_del_mes(
+async def test_libro_salida_excludes_pago_impuesto_escribania(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -568,43 +569,16 @@ async def test_libro_salida_includes_pago_impuesto_escribania_del_mes(
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    impuesto_lines = [linea for linea in libro.lineas if linea.origen == "impuesto"]
-    assert len(impuesto_lines) == 1
-    assert impuesto_lines[0].tipo_impuesto == TipoImpuesto.TGI
-    assert libro.total == Decimal("2459.02")
+    assert libro.lineas == []
+    assert libro.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_excludes_pago_impuesto_escribania_otro_mes(
-    session_factory: async_sessionmaker[AsyncSession],
-    seeded_config,
-    cleanup_escrituras: list,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr("services.pago_impuesto_escribania_service.publish", AsyncMock())
-    async with session_factory() as session:
-        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(20))
-        cleanup_escrituras.append(escritura.id)
-        impuesto = await create_impuesto(session, escritura.id, _impuesto_input())
-        from services.pago_impuesto_escribania_service import upsert_pago
-
-        await upsert_pago(
-            session,
-            escritura.id,
-            impuesto.id,
-            PagoImpuestoInput(monto=Decimal("2459.02"), fecha=_prev_month_payment_date(28)),
-        )
-        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
-
-    assert all(linea.origen != "impuesto" for linea in libro.lineas)
-
-
-@pytest.mark.asyncio
-async def test_libro_salida_includes_gasto_extraordinario_del_mes(
+async def test_libro_salida_excludes_gasto_extraordinario(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        gasto = await _insert_gasto_extraordinario(
+        await _insert_gasto_extraordinario(
             session,
             concepto="Celulares",
             monto=Decimal("150000.00"),
@@ -612,36 +586,12 @@ async def test_libro_salida_includes_gasto_extraordinario_del_mes(
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
-    extraordinario_lines = [linea for linea in libro.lineas if linea.origen == "extraordinario"]
-    assert len(extraordinario_lines) == 1
-    linea = extraordinario_lines[0]
-    assert linea.concepto == "Celulares"
-    assert linea.monto == Decimal("150000.00")
-    assert linea.escritura_id is None
-    assert linea.escritura_nombre is None
-    assert linea.gasto_extraordinario_id == str(gasto.id)
-    assert libro.total == Decimal("150000.00")
-
-
-@pytest.mark.asyncio
-async def test_libro_salida_excludes_gasto_extraordinario_otro_mes(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with session_factory() as session:
-        await _insert_gasto_extraordinario(
-            session,
-            concepto="Papeles",
-            monto=Decimal("50000.00"),
-            fecha=_prev_month_payment_date(),
-        )
-        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
-
-    assert all(linea.origen != "extraordinario" for linea in libro.lineas)
+    assert libro.lineas == []
     assert libro.total == Decimal("0.00")
 
 
 @pytest.mark.asyncio
-async def test_libro_salida_total_includes_colegio_y_gastos_extraordinarios(
+async def test_libro_salida_linea_colegio_tipo_pago_sin_detalle_extra(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
     cleanup_escrituras: list,
@@ -652,18 +602,77 @@ async def test_libro_salida_total_includes_colegio_y_gastos_extraordinarios(
         await _insert_pago_colegio(
             session,
             escritura.id,
+            concepto="",
+            monto=Decimal("25000.00"),
+            fecha=_payment_date(),
+            tipo=TipoPagoEscribania.COLEGIO,
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    assert len(libro.lineas) == 1
+    linea = libro.lineas[0]
+    assert linea.tipo_pago == "colegio"
+    assert linea.concepto == "Pago al colegio de escribanos"
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_linea_otros_muestra_concepto(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(22))
+        cleanup_escrituras.append(escritura.id)
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Certificación urgente",
+            monto=Decimal("75000.00"),
+            fecha=_payment_date(17),
+            tipo=TipoPagoEscribania.OTROS,
+        )
+        libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
+
+    assert len(libro.lineas) == 1
+    linea = libro.lineas[0]
+    assert linea.tipo_pago == "otros"
+    assert linea.concepto == "Certificación urgente"
+
+
+@pytest.mark.asyncio
+async def test_libro_salida_total_solo_pagos_colegio(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(session, seeded_config, created_at=_dt(23))
+        cleanup_escrituras.append(escritura.id)
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
             concepto="Colegio",
             monto=Decimal("25000.00"),
             fecha=_payment_date(),
+            tipo=TipoPagoEscribania.COLEGIO,
+        )
+        await _insert_pago_colegio(
+            session,
+            escritura.id,
+            concepto="Varios",
+            monto=Decimal("75000.00"),
+            fecha=_payment_date(17),
+            tipo=TipoPagoEscribania.OTROS,
         )
         await _insert_gasto_extraordinario(
             session,
             concepto="Insumos",
-            monto=Decimal("75000.00"),
-            fecha=_payment_date(17),
+            monto=Decimal("99999.00"),
+            fecha=_payment_date(18),
         )
         libro = await get_libro_salida(session, TEST_YEAR, TEST_MONTH)
 
     assert libro.total == Decimal("100000.00")
-    origenes = {linea.origen for linea in libro.lineas}
-    assert origenes == {"honorario", "extraordinario"}
+    assert len(libro.lineas) == 2
+    assert all(linea.tipo_pago in ("colegio", "otros") for linea in libro.lineas)

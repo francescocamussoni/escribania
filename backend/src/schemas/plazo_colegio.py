@@ -6,11 +6,9 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
-from models.pago_colegio import ImputacionPagoColegio
 from schemas.common import MoneyStr
 
 __all__ = [
-    "ImputacionPagoColegio",
     "PlazoColegioEstado",
     "PlazoColegioUrgencia",
     "PlazoColegioResponse",

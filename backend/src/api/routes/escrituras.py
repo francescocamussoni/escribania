@@ -13,7 +13,6 @@ from schemas.escritura import (
     EscrituraResponse,
     EscrituraUpdate,
 )
-from schemas.factura import FacturaPrincipalResponse
 from schemas.pago_cliente import PagoClienteResponse
 from schemas.pago_colegio import PagoColegioResponse
 from services.escritura_errors import (
@@ -24,6 +23,7 @@ from services.escritura_errors import (
     EscrituraSaldoPendienteError,
 )
 from services.escritura_service import (
+    build_factura_response,
     build_plazo_colegio_fields,
     build_saldo_fields,
     close_escritura,
@@ -53,7 +53,7 @@ def _to_response(escritura, *, balance_impuestos=None) -> EscrituraResponse:
         created_at=escritura.created_at,
         closed_at=escritura.closed_at,
         updated_at=escritura.updated_at,
-        factura=FacturaPrincipalResponse.model_validate(escritura.factura),
+        factura=build_factura_response(escritura.factura),
         costo_total=saldo["costo_total"],
         total_pagado=saldo["total_pagado"],
         saldo_pendiente=saldo["saldo_pendiente"],

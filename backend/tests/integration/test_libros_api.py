@@ -105,7 +105,12 @@ async def test_get_libro_salida_returns_200_with_structure(
 
     pago = await auth_client.post(
         f"/api/v1/escrituras/{escritura.id}/pagos-colegio",
-        json={"monto": "25000.00", "fecha": PAGO_FECHA, "concepto": "Colegio API", "imputacion": "honorarios_varios"},
+        json={
+            "monto": "25000.00",
+            "fecha": PAGO_FECHA,
+            "concepto": "Colegio API",
+            "tipo": "otros",
+        },
     )
     assert pago.status_code == 201
 
@@ -119,11 +124,77 @@ async def test_get_libro_salida_returns_200_with_structure(
     assert body["mes"] == TEST_MONTH
     assert body["lineas"]
     linea = next(item for item in body["lineas"] if item["escritura_id"] == str(escritura.id))
-    assert {"escritura_id", "escritura_nombre", "concepto", "monto", "fecha_pago", "origen"} <= linea.keys()
+    assert {
+        "escritura_id",
+        "escritura_nombre",
+        "concepto",
+        "monto",
+        "fecha_pago",
+        "origen",
+        "tipo_pago",
+    } <= linea.keys()
     assert linea["monto"] == "25000.00"
     assert linea["fecha_pago"] == PAGO_FECHA
     assert linea["concepto"] == "Colegio API"
     assert linea["origen"] == "honorario"
+    assert linea["tipo_pago"] == "otros"
+
+
+@pytest.mark.asyncio
+async def test_get_libro_salida_excludes_pagos_cliente_and_impuestos(
+    auth_client: AsyncClient,
+    db_session,
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    escritura = await insert_test_escritura(
+        db_session,
+        seeded_config,
+        created_at=_dt(8),
+        nombre="Solo pagos colegio",
+    )
+    cleanup_escrituras.append(escritura.id)
+
+    pago_cliente = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/pagos-cliente",
+        json={"monto": "80000.00", "fecha": PAGO_FECHA, "concepto": "Anticipo cliente"},
+    )
+    assert pago_cliente.status_code == 201
+
+    impuesto = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/impuestos",
+        json={
+            "tipo": "API",
+            "monto_total": "10000.00",
+            "periodo_inicio": "2030-05-01",
+            "periodo_fin": "2030-06-30",
+            "fecha_corte": "2030-06-15",
+            "direccion_prorrateo": "hacia_atras",
+        },
+    )
+    assert impuesto.status_code == 201
+    pago_impuesto = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/impuestos/{impuesto.json()['id']}/pago-escribania",
+        json={"monto": "5000.00", "fecha": PAGO_FECHA},
+    )
+    assert pago_impuesto.status_code == 201
+
+    pago_colegio = await auth_client.post(
+        f"/api/v1/escrituras/{escritura.id}/pagos-colegio",
+        json={"monto": "12000.00", "fecha": PAGO_FECHA, "tipo": "colegio"},
+    )
+    assert pago_colegio.status_code == 201
+
+    response = await auth_client.get(
+        "/api/v1/libros/salida",
+        params={"anio": TEST_YEAR, "mes": TEST_MONTH},
+    )
+    assert response.status_code == 200
+    lineas = response.json()["lineas"]
+    escritura_lineas = [linea for linea in lineas if linea["escritura_id"] == str(escritura.id)]
+    assert len(escritura_lineas) == 1
+    assert escritura_lineas[0]["monto"] == "12000.00"
+    assert escritura_lineas[0]["tipo_pago"] == "colegio"
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { EscrituraListItem } from "@/types/api";
 import { useEscribanos } from "@/hooks/useEscribanos";
 import type { SortDirection, SortField } from "@/utils/escrituraList";
+import { isSelectableForBulkPagoColegio } from "@/utils/escrituraList";
 import { PlazoColegioBadge } from "@/components/escrituras/PlazoColegioBadge";
 import {
   displayEscribanoNombre,
@@ -18,6 +19,9 @@ interface EscrituraListProps {
   sortField: SortField;
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleSelectAll?: () => void;
 }
 
 function hasSaldoPendiente(saldo: string): boolean {
@@ -52,8 +56,18 @@ export function EscrituraList({
   sortField,
   sortDirection,
   onSort,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }: EscrituraListProps) {
   const { data: escribanos } = useEscribanos(true);
+  const selectionEnabled = Boolean(selectedIds && onToggleSelect && onToggleSelectAll);
+
+  const selectableItems = selectionEnabled ? items.filter(isSelectableForBulkPagoColegio) : [];
+  const allSelectableSelected =
+    selectionEnabled &&
+    selectableItems.length > 0 &&
+    selectableItems.every((item) => selectedIds?.has(item.id));
 
   if (loading) {
     return <p className="page-muted">Cargando escrituras…</p>;
@@ -64,8 +78,24 @@ export function EscrituraList({
   }
 
   return (
-    <div className="escritura-list escritura-list--saldo">
+    <div
+      className={`escritura-list escritura-list--saldo${
+        selectionEnabled ? " escritura-list--selectable" : ""
+      }`}
+    >
       <div className="escritura-list__header">
+        {selectionEnabled ? (
+          <label className="escritura-list__checkbox">
+            <span className="visually-hidden">Seleccionar todas las escrituras elegibles</span>
+            <input
+              type="checkbox"
+              checked={allSelectableSelected}
+              disabled={selectableItems.length === 0}
+              onChange={onToggleSelectAll}
+              aria-label="Seleccionar todas las escrituras elegibles"
+            />
+          </label>
+        ) : null}
         <span>Nombre</span>
         <span>Escribano</span>
         <span>Estado</span>
@@ -104,34 +134,56 @@ export function EscrituraList({
         <span className="escritura-list__amount">Saldo pendiente</span>
         <span>Cobro</span>
       </div>
-      {items.map((item) => (
-        <Link key={item.id} to={`/escrituras/${item.id}`} className="escritura-list__row">
-          <span className="escritura-list__nombre">{item.nombre}</span>
-          <span>
-            {displayEscribanoNombre(item.escribano_id, item.escribano_nombre, escribanos)}
-          </span>
-          <span>
-            <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
-          </span>
-          <span>
-            {item.plazo_colegio ? <PlazoColegioBadge plazo={item.plazo_colegio} /> : null}
-          </span>
-          <span>{formatDate(item.created_at)}</span>
-          <span className="escritura-list__amount">{formatMoney(item.costo_total)}</span>
-          <span className="escritura-list__amount">{formatMoney(item.total_pagado)}</span>
-          <span
-            className={`escritura-list__amount${
-              hasSaldoPendiente(item.saldo_pendiente) ? " saldo-resumen__pendiente" : ""
-            }`}
-          >
-            {formatMoney(item.saldo_pendiente)}
-          </span>
-          <span className="escritura-list__badges">
-            {cobroPercentBadge(item)}
-            {item.sobrepago ? <span className="badge badge--muted">Sobrepago</span> : null}
-          </span>
-        </Link>
-      ))}
+      {items.map((item) => {
+        const selectable = selectionEnabled && isSelectableForBulkPagoColegio(item);
+        const selected = selectionEnabled && selectedIds?.has(item.id);
+
+        return (
+          <div key={item.id} className="escritura-list__row">
+            {selectionEnabled ? (
+              <label
+                className="escritura-list__checkbox"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="visually-hidden">Seleccionar {item.nombre}</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selected)}
+                  disabled={!selectable}
+                  onChange={() => onToggleSelect?.(item.id)}
+                  aria-label={`Seleccionar ${item.nombre}`}
+                />
+              </label>
+            ) : null}
+            <Link to={`/escrituras/${item.id}`} className="escritura-list__nombre text-link">
+              {item.nombre}
+            </Link>
+            <span>
+              {displayEscribanoNombre(item.escribano_id, item.escribano_nombre, escribanos)}
+            </span>
+            <span>
+              <span className={`badge badge--${item.estado}`}>{labelEstado(item.estado)}</span>
+            </span>
+            <span>
+              {item.plazo_colegio ? <PlazoColegioBadge plazo={item.plazo_colegio} /> : null}
+            </span>
+            <span>{formatDate(item.created_at)}</span>
+            <span className="escritura-list__amount">{formatMoney(item.costo_total)}</span>
+            <span className="escritura-list__amount">{formatMoney(item.total_pagado)}</span>
+            <span
+              className={`escritura-list__amount${
+                hasSaldoPendiente(item.saldo_pendiente) ? " saldo-resumen__pendiente" : ""
+              }`}
+            >
+              {formatMoney(item.saldo_pendiente)}
+            </span>
+            <span className="escritura-list__badges">
+              {cobroPercentBadge(item)}
+              {item.sobrepago ? <span className="badge badge--muted">Sobrepago</span> : null}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

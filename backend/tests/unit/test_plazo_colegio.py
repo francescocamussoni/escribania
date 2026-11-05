@@ -1,4 +1,4 @@
-"""TDD unit tests for plazo_colegio service (feature 008 — T004)."""
+"""TDD unit tests for plazo_colegio service (WU-010 — FAIL FIRST until WU-011)."""
 
 from __future__ import annotations
 
@@ -8,33 +8,54 @@ from types import SimpleNamespace
 
 import pytest
 
+from models.pago_colegio import TipoPagoEscribania
 from schemas.plazo_colegio import PlazoColegioEstado, PlazoColegioUrgencia
-from models.pago_colegio import ImputacionPagoColegio
-from services.plazo_colegio import PLAZO_COLEGIO_DIAS, calcular_plazo_colegio, sum_pagos_impuestos
+from services.plazo_colegio import PLAZO_COLEGIO_DIAS, calcular_plazo_colegio, sum_pagos_colegio
+
+CANONICAL_TOTAL_IMPUESTOS = Decimal("5311489.50")
+CANONICAL_SELLOS = Decimal("3740375.00")
+TOTAL_IMPUESTOS_EFECTIVO_SIN_SELLOS = CANONICAL_TOTAL_IMPUESTOS - CANONICAL_SELLOS
 
 
-def _pago(monto: str, imputacion: ImputacionPagoColegio) -> SimpleNamespace:
-    return SimpleNamespace(monto=Decimal(monto), imputacion=imputacion)
+def _pago(monto: str, tipo: TipoPagoEscribania) -> SimpleNamespace:
+    return SimpleNamespace(monto=Decimal(monto), tipo=tipo)
 
 
-class TestSumPagosImpuestos:
-    def test_solo_total_impuestos_cuenta(self) -> None:
+class TestSumPagosColegio:
+    def test_solo_tipo_colegio_cuenta(self) -> None:
         pagos = [
-            _pago("1000.00", ImputacionPagoColegio.TOTAL_IMPUESTOS),
-            _pago("500.00", ImputacionPagoColegio.HONORARIOS_VARIOS),
-            _pago("200.00", ImputacionPagoColegio.OTRO),
+            _pago("1000.00", TipoPagoEscribania.COLEGIO),
+            _pago("500.00", TipoPagoEscribania.OTROS),
+            _pago("200.00", TipoPagoEscribania.OTROS),
         ]
-        assert sum_pagos_impuestos(pagos) == Decimal("1000.00")
+        assert sum_pagos_colegio(pagos) == Decimal("1000.00")
+
+    def test_pagos_otros_ignorados_en_plazo(self) -> None:
+        pagos = [
+            _pago("300.00", TipoPagoEscribania.OTROS),
+            _pago("700.00", TipoPagoEscribania.COLEGIO),
+        ]
+        assert sum_pagos_colegio(pagos) == Decimal("700.00")
 
     def test_sin_pagos(self) -> None:
-        assert sum_pagos_impuestos([]) == Decimal("0.00")
+        assert sum_pagos_colegio([]) == Decimal("0.00")
 
 
 class TestCalcularPlazoColegio:
     CREATED = date(2026, 7, 1)
     VENCIMIENTO = date(2026, 7, 31)  # +30 días de corrido
 
-    def test_no_aplica_cuando_total_impuestos_cero(self) -> None:
+    def test_monto_referencia_desde_total_impuestos_efectivo(self) -> None:
+        """El caller debe pasar total_impuestos_efectivo (post-máscara líneas)."""
+        result = calcular_plazo_colegio(
+            fecha_creacion=self.CREATED,
+            total_impuestos=TOTAL_IMPUESTOS_EFECTIVO_SIN_SELLOS,
+            monto_pagado_impuestos=Decimal("0"),
+            fecha_referencia=self.CREATED,
+        )
+        assert result.monto_referencia == TOTAL_IMPUESTOS_EFECTIVO_SIN_SELLOS
+
+    def test_no_aplica_cuando_total_impuestos_efectivo_cero(self) -> None:
         result = calcular_plazo_colegio(
             fecha_creacion=self.CREATED,
             total_impuestos=Decimal("0"),

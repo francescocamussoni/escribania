@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
-import type { ImputacionPagoColegio, PagoColegioInput } from "@/types/api";
-import { IMPUTACION_PAGO_COLEGIO_OPTIONS } from "@/utils/imputacionColegio";
+import type { PagoColegioInput, TipoPagoEscribania } from "@/types/api";
+import { TIPO_PAGO_ESCRIBANIA_OPTIONS } from "@/utils/tipoPagoEscribania";
 import { friendlyApiError } from "@/utils/errors";
 
 interface PagoColegioFormProps {
@@ -12,28 +12,37 @@ function todayIsoDate(): string {
 }
 
 export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
+  const [tipo, setTipo] = useState<TipoPagoEscribania>("colegio");
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(todayIsoDate());
-  const [imputacion, setImputacion] = useState<ImputacionPagoColegio>("total_impuestos");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const requiereDetalle = tipo === "otros";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const detalle = concepto.trim();
+    if (requiereDetalle && !detalle) {
+      setError("El detalle es obligatorio para pagos tipo Otros.");
+      return;
+    }
+
     setLoading(true);
     try {
       await onSubmit({
-        concepto: concepto.trim(),
         monto,
         fecha,
-        imputacion,
+        tipo,
+        concepto: detalle,
       });
+      setTipo("colegio");
       setConcepto("");
       setMonto("");
       setFecha(todayIsoDate());
-      setImputacion("total_impuestos");
     } catch (err) {
       setError(friendlyApiError(err, "No se pudo registrar el pago de la escribanía."));
     } finally {
@@ -46,27 +55,18 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
       <h3 className="gasto-form__title">Registrar pago de la escribanía</h3>
       <div className="gasto-form__grid">
         <label className="field">
-          <span>Imputación</span>
+          <span>Tipo de pago</span>
           <select
-            value={imputacion}
-            onChange={(e) => setImputacion(e.target.value as ImputacionPagoColegio)}
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as TipoPagoEscribania)}
             required
           >
-            {IMPUTACION_PAGO_COLEGIO_OPTIONS.map((option) => (
+            {TIPO_PAGO_ESCRIBANIA_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
-        </label>
-        <label className="field">
-          <span>Concepto</span>
-          <input
-            type="text"
-            value={concepto}
-            onChange={(e) => setConcepto(e.target.value)}
-            placeholder="Aporte, sellos…"
-          />
         </label>
         <label className="field">
           <span>Monto</span>
@@ -83,6 +83,18 @@ export function PagoColegioForm({ onSubmit }: PagoColegioFormProps) {
           <span>Fecha</span>
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
         </label>
+        {requiereDetalle ? (
+          <label className="field field--full">
+            <span>Detalle</span>
+            <textarea
+              value={concepto}
+              onChange={(e) => setConcepto(e.target.value)}
+              placeholder="Describa el concepto del pago…"
+              rows={2}
+              required
+            />
+          </label>
+        ) : null}
       </div>
       {error ? <p className="form-error">{error}</p> : null}
       <button type="submit" className="button button--primary" disabled={loading}>

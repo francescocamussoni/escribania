@@ -12,7 +12,7 @@ pytestmark = pytest.mark.usefixtures("isolated_liquidacion_month")
 
 
 @pytest.mark.asyncio
-async def test_create_pago_colegio_returns_201(
+async def test_create_pago_colegio_colegio_returns_201(
     auth_client: AsyncClient,
     escribano_ids: dict[str, str],
     seeded_config,
@@ -21,18 +21,23 @@ async def test_create_pago_colegio_returns_201(
     created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "250000.00", "fecha": PAGO_FECHA, "concepto": "Aporte Colegio", "imputacion": "total_impuestos"},
+        json={
+            "monto": "250000.00",
+            "fecha": PAGO_FECHA,
+            "concepto": "Aporte Colegio",
+            "tipo": "colegio",
+        },
     )
     assert response.status_code == 201
     body = response.json()
     assert body["escritura_id"] == created["id"]
     assert body["monto"] == "250000.00"
     assert body["concepto"] == "Aporte Colegio"
-    assert body["imputacion"] == "total_impuestos"
+    assert body["tipo"] == "colegio"
 
 
 @pytest.mark.asyncio
-async def test_create_pago_colegio_without_imputacion_returns_422(
+async def test_create_pago_colegio_otros_returns_201(
     auth_client: AsyncClient,
     escribano_ids: dict[str, str],
     seeded_config,
@@ -41,13 +46,36 @@ async def test_create_pago_colegio_without_imputacion_returns_422(
     created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "1000.00", "fecha": PAGO_FECHA},
+        json={
+            "monto": "150000.00",
+            "fecha": PAGO_FECHA,
+            "concepto": "Gastos varios escribanía",
+            "tipo": "otros",
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["tipo"] == "otros"
+    assert body["concepto"] == "Gastos varios escribanía"
+
+
+@pytest.mark.asyncio
+async def test_create_pago_colegio_otros_without_concepto_returns_422(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    response = await auth_client.post(
+        f"/api/v1/escrituras/{created['id']}/pagos-colegio",
+        json={"monto": "1000.00", "fecha": PAGO_FECHA, "tipo": "otros"},
     )
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_honorarios_varios_pago_does_not_close_plazo(
+async def test_otros_pago_does_not_close_plazo(
     auth_client: AsyncClient,
     escribano_ids: dict[str, str],
     seeded_config,
@@ -60,7 +88,8 @@ async def test_honorarios_varios_pago_does_not_close_plazo(
         json={
             "monto": total_impuestos,
             "fecha": PAGO_FECHA,
-            "imputacion": "honorarios_varios",
+            "concepto": "Honorarios varios",
+            "tipo": "otros",
         },
     )
     assert response.status_code == 201
@@ -73,7 +102,7 @@ async def test_honorarios_varios_pago_does_not_close_plazo(
 
 
 @pytest.mark.asyncio
-async def test_total_impuestos_pago_closes_plazo(
+async def test_colegio_pago_closes_plazo(
     auth_client: AsyncClient,
     escribano_ids: dict[str, str],
     seeded_config,
@@ -86,7 +115,7 @@ async def test_total_impuestos_pago_closes_plazo(
         json={
             "monto": total_impuestos,
             "fecha": PAGO_FECHA,
-            "imputacion": "total_impuestos",
+            "tipo": "colegio",
         },
     )
     assert response.status_code == 201
@@ -112,7 +141,12 @@ async def test_create_pago_colegio_ok_con_saldo_cliente_pendiente(
 
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "150000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
+        json={
+            "monto": "150000.00",
+            "fecha": PAGO_FECHA,
+            "concepto": "Varios",
+            "tipo": "otros",
+        },
     )
     assert response.status_code == 201
 
@@ -153,7 +187,12 @@ async def test_create_pago_colegio_closed_escritura_returns_409(
 
     response = await auth_client.post(
         f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-        json={"monto": "1000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
+        json={
+            "monto": "1000.00",
+            "fecha": PAGO_FECHA,
+            "concepto": "Varios",
+            "tipo": "otros",
+        },
     )
     assert response.status_code == 409
 
@@ -171,7 +210,12 @@ async def test_create_pago_colegio_requires_auth(
     async with AsyncClient(transport=transport, base_url="http://test") as anon_client:
         response = await anon_client.post(
             f"/api/v1/escrituras/{created['id']}/pagos-colegio",
-            json={"monto": "1000.00", "fecha": PAGO_FECHA, "imputacion": "honorarios_varios"},
+            json={
+                "monto": "1000.00",
+                "fecha": PAGO_FECHA,
+                "concepto": "Varios",
+                "tipo": "otros",
+            },
         )
     assert response.status_code == 401
 

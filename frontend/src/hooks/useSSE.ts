@@ -5,7 +5,7 @@ import { API_BASE } from "@/api/client";
 
 const RECONNECT_MS = 3000;
 
-function invalidateForEvent(
+export function invalidateForEvent(
   queryClient: ReturnType<typeof useQueryClient>,
   eventType: SseEventType,
   data: Record<string, string>,

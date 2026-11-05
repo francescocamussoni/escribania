@@ -1,4 +1,4 @@
-"""TDD unit tests for pago_colegio_service (WU-016 — FAIL FIRST until WU-018)."""
+"""TDD unit tests for pago_colegio_service (WU-007 — FAIL FIRST until WU-009)."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from models.escritura import EstadoEscritura
 from models.factura_principal import FacturaPrincipal
-from models.pago_colegio import ImputacionPagoColegio
+from models.pago_colegio import TipoPagoEscribania
 from schemas.pago_colegio import PagoColegioInput, PagoColegioResponse
 from services.escritura_errors import EscrituraClosedError
-from services.pago_colegio_service import create_pago, sum_pagos, sum_pagos_impuestos
+from services.pago_colegio_service import create_pago, sum_pagos, sum_pagos_colegio
 from helpers.escritura_factory import insert_test_escritura
 
 TEST_DATE = date(2026, 7, 20)
@@ -27,33 +27,61 @@ def _dt() -> datetime:
 
 
 class TestPagoColegioSchema:
-    def test_input_accepts_valid_payload(self) -> None:
+    def test_input_accepts_valid_payload_colegio(self) -> None:
         payload = PagoColegioInput.model_validate(
             {
                 "monto": "250000.00",
                 "fecha": "2026-07-20",
                 "concepto": "Aporte Colegio",
-                "imputacion": "total_impuestos",
+                "tipo": "colegio",
             }
         )
         assert payload.monto == Decimal("250000.00")
         assert payload.fecha == TEST_DATE
         assert payload.concepto == "Aporte Colegio"
-        assert payload.imputacion == ImputacionPagoColegio.TOTAL_IMPUESTOS
+        assert payload.tipo == TipoPagoEscribania.COLEGIO
+
+    def test_input_default_tipo_colegio(self) -> None:
+        payload = PagoColegioInput.model_validate(
+            {
+                "monto": "100.00",
+                "fecha": "2026-07-20",
+            }
+        )
+        assert payload.tipo == TipoPagoEscribania.COLEGIO
 
     def test_input_default_concepto_empty(self) -> None:
         payload = PagoColegioInput.model_validate(
             {
                 "monto": "100.00",
                 "fecha": "2026-07-20",
-                "imputacion": "honorarios_varios",
+                "tipo": "colegio",
             }
         )
         assert payload.concepto == ""
 
-    def test_input_rejects_missing_imputacion(self) -> None:
+    def test_input_otros_sin_concepto_rechazado(self) -> None:
         with pytest.raises(ValidationError):
-            PagoColegioInput.model_validate({"monto": "100.00", "fecha": "2026-07-20"})
+            PagoColegioInput.model_validate(
+                {
+                    "monto": "100.00",
+                    "fecha": "2026-07-20",
+                    "tipo": "otros",
+                    "concepto": "",
+                }
+            )
+
+    def test_input_otros_con_concepto_ok(self) -> None:
+        payload = PagoColegioInput.model_validate(
+            {
+                "monto": "100.00",
+                "fecha": "2026-07-20",
+                "tipo": "otros",
+                "concepto": "Gastos varios",
+            }
+        )
+        assert payload.tipo == TipoPagoEscribania.OTROS
+        assert payload.concepto == "Gastos varios"
 
     def test_input_rejects_extra_fields(self) -> None:
         with pytest.raises(ValidationError):
@@ -61,7 +89,7 @@ class TestPagoColegioSchema:
                 {
                     "monto": "100.00",
                     "fecha": "2026-07-20",
-                    "imputacion": "honorarios_varios",
+                    "tipo": "colegio",
                     "unknown": "x",
                 }
             )
@@ -72,7 +100,7 @@ class TestPagoColegioSchema:
                 {
                     "monto": "0",
                     "fecha": "2026-07-20",
-                    "imputacion": "honorarios_varios",
+                    "tipo": "colegio",
                 }
             )
 
@@ -82,7 +110,7 @@ class TestPagoColegioSchema:
                 {
                     "monto": "-1.00",
                     "fecha": "2026-07-20",
-                    "imputacion": "honorarios_varios",
+                    "tipo": "colegio",
                 }
             )
 
@@ -116,14 +144,38 @@ async def test_create_pago_ok_con_saldo_cliente_pendiente(
                 monto=monto,
                 fecha=TEST_DATE,
                 concepto="Aporte Colegio",
-                imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+                tipo=TipoPagoEscribania.COLEGIO,
             ),
         )
 
         assert pago.monto == monto
         assert pago.escritura_id == escritura.id
+        assert pago.tipo == TipoPagoEscribania.COLEGIO
         total_pagado = await sum_pagos(session, escritura.id)
         assert total_pagado == monto
+
+
+@pytest.mark.asyncio
+async def test_create_pago_otros_con_concepto(
+    session_factory: async_sessionmaker[AsyncSession],
+    seeded_config,
+) -> None:
+    async with session_factory() as session:
+        escritura = await insert_test_escritura(
+            session, seeded_config, created_at=_dt(), estado=EstadoEscritura.ABIERTA
+        )
+        pago = await create_pago(
+            session,
+            escritura.id,
+            PagoColegioInput(
+                monto=Decimal("5000.00"),
+                fecha=TEST_DATE,
+                tipo=TipoPagoEscribania.OTROS,
+                concepto="Certificación extra",
+            ),
+        )
+        assert pago.tipo == TipoPagoEscribania.OTROS
+        assert pago.concepto == "Certificación extra"
 
 
 @pytest.mark.asyncio
@@ -147,7 +199,7 @@ async def test_create_pago_no_valida_contra_leyes_notariales_proyectadas(
                 monto=monto,
                 fecha=TEST_DATE,
                 concepto="Exceso permitido",
-                imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+                tipo=TipoPagoEscribania.COLEGIO,
             ),
         )
 
@@ -171,7 +223,7 @@ async def test_create_pago_rechaza_escritura_cerrada(
                 PagoColegioInput(
                     monto=Decimal("1000.00"),
                     fecha=TEST_DATE,
-                    imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+                    tipo=TipoPagoEscribania.COLEGIO,
                 ),
             )
 
@@ -192,16 +244,16 @@ def test_pago_colegio_response_from_attributes() -> None:
         monto=Decimal("100.00"),
         fecha=TEST_DATE,
         concepto="Test",
-        imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+        tipo=TipoPagoEscribania.COLEGIO,
         created_at=datetime(2026, 7, 20, 12, 0, 0, tzinfo=UTC),
     )
     response = PagoColegioResponse.model_validate(row)
     assert response.monto == Decimal("100.00")
-    assert response.imputacion == ImputacionPagoColegio.TOTAL_IMPUESTOS
+    assert response.tipo == TipoPagoEscribania.COLEGIO
 
 
 @pytest.mark.asyncio
-async def test_sum_pagos_impuestos_solo_imputacion_total_impuestos(
+async def test_sum_pagos_colegio_solo_tipo_colegio(
     session_factory: async_sessionmaker[AsyncSession],
     seeded_config,
 ) -> None:
@@ -215,7 +267,7 @@ async def test_sum_pagos_impuestos_solo_imputacion_total_impuestos(
             PagoColegioInput(
                 monto=Decimal("1000.00"),
                 fecha=TEST_DATE,
-                imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+                tipo=TipoPagoEscribania.COLEGIO,
             ),
         )
         await create_pago(
@@ -224,8 +276,9 @@ async def test_sum_pagos_impuestos_solo_imputacion_total_impuestos(
             PagoColegioInput(
                 monto=Decimal("500.00"),
                 fecha=TEST_DATE,
-                imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+                tipo=TipoPagoEscribania.OTROS,
+                concepto="Gasto misc",
             ),
         )
-        total_impuestos = await sum_pagos_impuestos(session, escritura.id)
-        assert total_impuestos == Decimal("1000.00")
+        total_colegio = await sum_pagos_colegio(session, escritura.id)
+        assert total_colegio == Decimal("1000.00")

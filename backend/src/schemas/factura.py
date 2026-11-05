@@ -1,8 +1,22 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from schemas.common import MoneyStr
+
+FacturaLineaSeccion = Literal["honorarios", "honorarios_varios", "impuestos", "gastos_admin"]
+
+
+class FacturaLineaItem(BaseModel):
+    key: str
+    label: str
+    monto: MoneyStr
+    monto_efectivo: MoneyStr
+    habilitada: bool
+    seccion: FacturaLineaSeccion
 
 
 class FacturaPrincipalResponse(BaseModel):
@@ -49,3 +63,6 @@ class FacturaPrincipalResponse(BaseModel):
     iva: Decimal
     total_factura: Decimal
     updated_at: datetime | None = None
+    lineas_deshabilitadas: list[str] = Field(default_factory=list)
+    lineas: list[FacturaLineaItem] = Field(default_factory=list)
+    total_impuestos_efectivo: MoneyStr | None = None

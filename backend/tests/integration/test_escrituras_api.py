@@ -4,6 +4,8 @@ from decimal import Decimal
 import pytest
 from httpx import AsyncClient
 
+from services.factura_lineas import FACTURA_LINEA_KEYS
+
 BASE_PAYLOAD = {
     "usd_value": "105000.00",
     "dolar_mep": "1450.34",
@@ -246,6 +248,68 @@ async def test_patch_open_escritura_recalculates(
     monto_base = Decimal("10000.00") * Decimal("1450.34")
     expected_honorario = max(monto_base * honorario_pct, honorario_min).quantize(Decimal("0.01"))
     assert Decimal(body["factura"]["honorario_principal"]) == expected_honorario
+
+
+CANONICAL_SELLOS = Decimal("3740375.00")
+
+
+@pytest.mark.asyncio
+async def test_patch_lineas_deshabilitadas_reduces_total_impuestos_efectivo(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    total_impuestos = Decimal(created["factura"]["total_impuestos"])
+
+    response = await auth_client.patch(
+        f"/api/v1/escrituras/{escritura_id}",
+        json={"lineas_deshabilitadas": ["sellos"]},
+    )
+    assert response.status_code == 200
+
+    body = response.json()
+    expected_efectivo = (total_impuestos - CANONICAL_SELLOS).quantize(Decimal("0.01"))
+    assert Decimal(body["factura"]["total_impuestos_efectivo"]) == expected_efectivo
+    assert body["factura"]["lineas_deshabilitadas"] == ["sellos"]
+    assert Decimal(body["plazo_colegio"]["monto_referencia"]) == expected_efectivo
+
+
+@pytest.mark.asyncio
+async def test_patch_lineas_deshabilitadas_all_lines_returns_422(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    response = await auth_client.patch(
+        f"/api/v1/escrituras/{created['id']}",
+        json={"lineas_deshabilitadas": list(FACTURA_LINEA_KEYS)},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_lineas_deshabilitadas_closed_returns_409(
+    auth_client: AsyncClient,
+    escribano_ids: dict[str, str],
+    seeded_config,
+    cleanup_escrituras: list,
+) -> None:
+    created = await _create_escritura(auth_client, escribano_ids, cleanup_escrituras)
+    escritura_id = created["id"]
+    await _pay_full(auth_client, escritura_id, created["costo_total"])
+    closed = await auth_client.post(f"/api/v1/escrituras/{escritura_id}/close")
+    assert closed.status_code == 200
+
+    response = await auth_client.patch(
+        f"/api/v1/escrituras/{escritura_id}",
+        json={"lineas_deshabilitadas": ["sellos"]},
+    )
+    assert response.status_code == 409
 
 
 @pytest.mark.asyncio

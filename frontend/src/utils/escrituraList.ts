@@ -77,12 +77,14 @@ export function sortByVencimiento(
   }
 
   const compareByVencimiento = (a: EscrituraListItem, b: EscrituraListItem) => {
-    const timeA = new Date(a.plazo_colegio.fecha_vencimiento!).getTime();
-    const timeB = new Date(b.plazo_colegio.fecha_vencimiento!).getTime();
+    const fechaA = a.plazo_colegio?.fecha_vencimiento ?? "";
+    const fechaB = b.plazo_colegio?.fecha_vencimiento ?? "";
+    const timeA = new Date(fechaA).getTime();
+    const timeB = new Date(fechaB).getTime();
     if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA !== timeB) {
       return timeA - timeB;
     }
-    return a.plazo_colegio.fecha_vencimiento!.localeCompare(b.plazo_colegio.fecha_vencimiento!);
+    return fechaA.localeCompare(fechaB);
   };
 
   active.sort(compareByVencimiento);
@@ -113,4 +115,13 @@ export function buildEscribanoFilterOptions(
       activo: escribano.activo,
     }))
     .sort((a, b) => a.label.localeCompare(b.label, "es"));
+}
+
+/** Escrituras abiertas con pendiente al Colegio > 0 pueden incluirse en pago masivo. */
+export function isSelectableForBulkPagoColegio(item: EscrituraListItem): boolean {
+  if (item.estado === "cerrada") {
+    return false;
+  }
+  const pendiente = Number(item.plazo_colegio?.monto_pendiente ?? "0");
+  return !Number.isNaN(pendiente) && pendiente > 0;
 }

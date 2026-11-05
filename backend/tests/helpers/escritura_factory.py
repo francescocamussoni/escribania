@@ -12,7 +12,7 @@ from models.escribano import Escribano
 from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
 from models.pago_cliente import PagoCliente
-from models.pago_colegio import ImputacionPagoColegio, PagoColegio
+from models.pago_colegio import PagoColegio, TipoPagoEscribania
 from services.calculo_factura import calcular_factura_completa
 from services.escritura_service import config_from_row
 
@@ -248,16 +248,16 @@ async def insert_test_pago_colegio(
     monto: Decimal,
     fecha: date,
     concepto: str = "Pago colegio test",
-    imputacion: ImputacionPagoColegio = ImputacionPagoColegio.HONORARIOS_VARIOS,
+    tipo: TipoPagoEscribania = TipoPagoEscribania.COLEGIO,
 ) -> PagoColegio:
-    """Insert a test pago colegio row. Default imputacion is honorarios_varios (legacy-safe)."""
+    """Insert a test pago colegio row. Default tipo is colegio."""
     pago = PagoColegio(
         id=uuid.uuid4(),
         escritura_id=escritura_id,
         monto=monto,
         fecha=fecha,
         concepto=concepto,
-        imputacion=imputacion,
+        tipo=tipo,
     )
     session.add(pago)
     await session.commit()

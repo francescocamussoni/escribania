@@ -1,4 +1,4 @@
-"""Smoke checks for demo seed constants (feature 008 — seed v5)."""
+"""Smoke checks for demo seed constants (feature 009 — seed v6)."""
 
 from scripts.seed_demo_data import (
     DEMO_SEED_VERSION,
@@ -11,8 +11,8 @@ from scripts.seed_demo_data import (
 )
 
 
-def test_demo_seed_version_is_five() -> None:
-    assert DEMO_SEED_VERSION == 5
+def test_demo_seed_version_is_six() -> None:
+    assert DEMO_SEED_VERSION == 6
 
 
 def test_expected_demo_escritura_count() -> None:

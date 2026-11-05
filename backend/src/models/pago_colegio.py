@@ -16,10 +16,9 @@ if TYPE_CHECKING:
     from models.escritura import Escritura
 
 
-class ImputacionPagoColegio(str, Enum):
-    TOTAL_IMPUESTOS = "total_impuestos"
-    HONORARIOS_VARIOS = "honorarios_varios"
-    OTRO = "otro"
+class TipoPagoEscribania(str, Enum):
+    COLEGIO = "colegio"
+    OTROS = "otros"
 
 
 class PagoColegio(Base):
@@ -38,10 +37,10 @@ class PagoColegio(Base):
     monto: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     concepto: Mapped[str] = mapped_column(String(500), nullable=False, server_default="")
-    imputacion: Mapped[ImputacionPagoColegio] = mapped_column(
+    tipo: Mapped[TipoPagoEscribania] = mapped_column(
         SAEnum(
-            ImputacionPagoColegio,
-            name="imputacion_pago_colegio",
+            TipoPagoEscribania,
+            name="tipo_pago_escribania",
             values_callable=lambda x: [e.value for e in x],
         ),
         nullable=False,

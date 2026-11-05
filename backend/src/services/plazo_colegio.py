@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Iterable, Protocol
 
-from models.pago_colegio import ImputacionPagoColegio
+from models.pago_colegio import TipoPagoEscribania
 from schemas.plazo_colegio import PlazoColegioEstado, PlazoColegioUrgencia
 
 PLAZO_COLEGIO_DIAS = 30
@@ -14,7 +14,7 @@ _ZERO = Decimal("0.00")
 
 class PagoColegioLike(Protocol):
     monto: Decimal
-    imputacion: ImputacionPagoColegio
+    tipo: TipoPagoEscribania
 
 
 @dataclass(frozen=True)
@@ -28,12 +28,17 @@ class PlazoColegioCalculation:
     monto_pendiente: Decimal
 
 
-def sum_pagos_impuestos(pagos: Iterable[PagoColegioLike]) -> Decimal:
+def sum_pagos_colegio(pagos: Iterable[PagoColegioLike]) -> Decimal:
     total = sum(
-        (pago.monto for pago in pagos if pago.imputacion == ImputacionPagoColegio.TOTAL_IMPUESTOS),
+        (pago.monto for pago in pagos if pago.tipo == TipoPagoEscribania.COLEGIO),
         _ZERO,
     )
     return total.quantize(Decimal("0.01"))
+
+
+def sum_pagos_impuestos(pagos: Iterable[PagoColegioLike]) -> Decimal:
+    """Deprecated alias — use sum_pagos_colegio."""
+    return sum_pagos_colegio(pagos)
 
 
 def _urgencia_for_dias(dias_restantes: int) -> PlazoColegioUrgencia:

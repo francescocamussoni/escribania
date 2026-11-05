@@ -4,9 +4,12 @@ Año demo 2026:
 - Ene–May y Ago–Dic: 1 escritura cerrada/mes/escribano (30), nombres de clientes ficticios.
 - Jun–Jul: 4 escenarios/escribano (12), algunas abiertas con deuda.
 - Costanza: 3 escrituras abiertas con fechas escalonadas (plazo verde/amarillo/rojo).
-Total: 45 escrituras [DEMO] (seed v5).
+Total: 45 escrituras [DEMO] (seed v6).
 
-v5: Costanza monotributista, pagos colegio con imputaciones mixtas, fechas relativas para plazo.
+v6: pagos colegio tipo colegio/otros; al menos una factura con lineas_deshabilitadas (sellos).
+
+v6: pagos colegio tipo colegio/otros; al menos una factura con lineas_deshabilitadas (sellos).
+v5: Costanza monotributista, fechas relativas para plazo.
 
 Solo corre si SEED_DEMO_DATA=true y ENVIRONMENT=local.
 Si existe un seed viejo (conteo distinto), borra y re-crea.
@@ -31,7 +34,7 @@ from models.escritura import Escritura, EstadoEscritura
 from models.factura_principal import FacturaPrincipal
 from models.gasto_extraordinario import GastoExtraordinario
 from models.pago_cliente import PagoCliente
-from models.pago_colegio import ImputacionPagoColegio, PagoColegio
+from models.pago_colegio import PagoColegio, TipoPagoEscribania
 from schemas.pago_cliente import PagoClienteInput
 from schemas.pago_colegio import PagoColegioInput
 from services.calculo_factura import calcular_factura_completa
@@ -42,7 +45,7 @@ from services.pago_saldo import is_sobrepago
 
 DEMO_PREFIX = "[DEMO]"
 DEMO_YEAR = 2026
-DEMO_SEED_VERSION = 5
+DEMO_SEED_VERSION = 6
 SCENARIOS_PER_ESCRIBANO = 4
 PLAZO_SHOWCASE_COUNT = 3
 CLOSED_MONTHS = (1, 2, 3, 4, 5, 8, 9, 10, 11, 12)
@@ -302,6 +305,7 @@ async def _insert_demo_escritura(
     nombre: str,
     created_at: datetime,
     usd_value: Decimal,
+    lineas_deshabilitadas: list[str] | None = None,
 ) -> Escritura:
     escribano = await _get_escribano_by_name(session, escribano_nombre)
     calc = calcular_factura_completa(
@@ -327,6 +331,7 @@ async def _insert_demo_escritura(
     factura = FacturaPrincipal(
         id=uuid.uuid4(),
         escritura_id=escritura_id,
+        lineas_deshabilitadas=list(lineas_deshabilitadas or []),
         **{field: calc[field] for field in FACTURA_FIELDS},
     )
     session.add(escritura)
@@ -368,8 +373,8 @@ async def _pay_colegio(
     *,
     monto: Decimal,
     fecha: date,
-    concepto: str,
-    imputacion: ImputacionPagoColegio = ImputacionPagoColegio.TOTAL_IMPUESTOS,
+    concepto: str = "",
+    tipo: TipoPagoEscribania = TipoPagoEscribania.COLEGIO,
 ) -> None:
     await create_pago_colegio(
         session,
@@ -378,7 +383,7 @@ async def _pay_colegio(
             monto=monto,
             fecha=fecha,
             concepto=concepto,
-            imputacion=imputacion,
+            tipo=tipo,
         ),
     )
 
@@ -475,7 +480,7 @@ async def _seed_jun_jul_scenarios(
         monto=Decimal("200000.00"),
         fecha=_d(7, 5),
         concepto="Honorarios varios Colegio",
-        imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+        tipo=TipoPagoEscribania.OTROS,
     )
     if escribano_nombre == "Costanza":
         await _pay_colegio(
@@ -484,7 +489,7 @@ async def _seed_jun_jul_scenarios(
             monto=Decimal("100000.00"),
             fecha=_d(7, 8),
             concepto="Aporte parcial impuestos",
-            imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+            tipo=TipoPagoEscribania.COLEGIO,
         )
 
     # Junio–julio — cerrada tras pagos en ambos meses
@@ -546,6 +551,7 @@ async def _seed_plazo_showcase(
             nombre=_demo_nombre(label),
             created_at=created_at,
             usd_value=usd_value,
+            lineas_deshabilitadas=["sellos"] if index == 0 else None,
         )
         if index == 1:
             await _pay_colegio(
@@ -554,7 +560,7 @@ async def _seed_plazo_showcase(
                 monto=Decimal("50000.00"),
                 fecha=created_day,
                 concepto="Honorarios varios (no cierra plazo)",
-                imputacion=ImputacionPagoColegio.HONORARIOS_VARIOS,
+                tipo=TipoPagoEscribania.OTROS,
             )
         elif index == 2:
             factura = await session.scalar(
@@ -567,7 +573,7 @@ async def _seed_plazo_showcase(
                     monto=_q(factura.total_impuestos / 2),
                     fecha=created_day,
                     concepto="Aporte parcial Total impuestos",
-                    imputacion=ImputacionPagoColegio.TOTAL_IMPUESTOS,
+                    tipo=TipoPagoEscribania.COLEGIO,
                 )
 
 
@@ -591,6 +597,29 @@ async def _seed_demo_gastos_julio(session: AsyncSession) -> None:
 async def _verify_demo_saldo(session: AsyncSession) -> None:
     if await _demo_has_sobrepago(session):
         raise RuntimeError("Demo seed inconsistente: quedaron escrituras con sobrepago.")
+
+
+async def _verify_demo_feature_009(session: AsyncSession) -> None:
+    facturas = list(
+        await session.scalars(
+            select(FacturaPrincipal)
+            .join(Escritura)
+            .where(Escritura.nombre.like(f"{DEMO_PREFIX}%"))
+        )
+    )
+    if not any(factura.lineas_deshabilitadas for factura in facturas):
+        raise RuntimeError("Demo seed inconsistente: falta factura con lineas_deshabilitadas.")
+
+    pagos = list(
+        await session.scalars(
+            select(PagoColegio)
+            .join(Escritura)
+            .where(Escritura.nombre.like(f"{DEMO_PREFIX}%"))
+        )
+    )
+    tipos = {pago.tipo for pago in pagos}
+    if TipoPagoEscribania.COLEGIO not in tipos or TipoPagoEscribania.OTROS not in tipos:
+        raise RuntimeError("Demo seed inconsistente: faltan pagos tipo colegio u otros.")
 
 
 async def seed() -> None:
@@ -645,6 +674,7 @@ async def seed() -> None:
         )
         await session.commit()
         await _verify_demo_saldo(session)
+        await _verify_demo_feature_009(session)
 
     print(
         f"Seeded demo v{DEMO_SEED_VERSION}: {EXPECTED_DEMO_COUNT} escrituras "

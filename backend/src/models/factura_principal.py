@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, Numeric, func, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+
+if TYPE_CHECKING:
+    from models.escritura import Escritura
 
 
 class FacturaPrincipal(Base):
@@ -57,6 +61,12 @@ class FacturaPrincipal(Base):
     total_sin_iva: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     iva: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_factura: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    lineas_deshabilitadas: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+        default=list,
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

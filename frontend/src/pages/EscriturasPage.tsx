@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { EscrituraForm } from "@/components/escrituras/EscrituraForm";
 import { EscrituraList } from "@/components/escrituras/EscrituraList";
+import { PagoColegioBulkModal } from "@/components/escrituras/PagoColegioBulkModal";
 import { useEscriturasListSession } from "@/hooks/useEscriturasListSession";
 import { useCreateEscritura, useEscrituras } from "@/hooks/useEscrituras";
 import { useEscribanos } from "@/hooks/useEscribanos";
@@ -10,6 +11,7 @@ import type { EscrituraListFilters } from "@/api/escrituras";
 import {
   buildEscribanoFilterOptions,
   filterByNombre,
+  isSelectableForBulkPagoColegio,
   sortByCreatedAt,
   sortByVencimiento,
 } from "@/utils/escrituraList";
@@ -51,6 +53,8 @@ function buildServerFilters(
 export function EscriturasPage() {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const {
     escribanoFilter,
     estadoFilter,
@@ -101,6 +105,36 @@ export function EscriturasPage() {
   const emptyMessage = hasActiveFilters
     ? "No hay escrituras que coincidan con los criterios actuales."
     : "No hay escrituras para mostrar.";
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAll = useCallback(() => {
+    const selectableIds = displayItems.filter(isSelectableForBulkPagoColegio).map((item) => item.id);
+    setSelectedIds((current) => {
+      const allSelected =
+        selectableIds.length > 0 && selectableIds.every((id) => current.has(id));
+      if (allSelected) {
+        const next = new Set(current);
+        for (const id of selectableIds) {
+          next.delete(id);
+        }
+        return next;
+      }
+      return new Set([...current, ...selectableIds]);
+    });
+  }, [displayItems]);
+
+  const selectedCount = selectedIds.size;
 
   return (
     <div className="escrituras-page">
@@ -215,6 +249,21 @@ export function EscriturasPage() {
 
       {error ? <p className="form-error">No se pudieron cargar las escrituras.</p> : null}
 
+      {selectedCount > 0 ? (
+        <div className="escrituras-page__bulk-actions" aria-live="polite">
+          <span>
+            {selectedCount} {selectedCount === 1 ? "escritura seleccionada" : "escrituras seleccionadas"}
+          </span>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => setShowBulkModal(true)}
+          >
+            Pago al colegio de escribanos
+          </button>
+        </div>
+      ) : null}
+
       <EscrituraList
         items={displayItems}
         loading={isLoading}
@@ -222,6 +271,9 @@ export function EscriturasPage() {
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={toggleSort}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        onToggleSelectAll={handleToggleSelectAll}
       />
 
       {showCreate ? (
@@ -245,6 +297,14 @@ export function EscriturasPage() {
             />
           </div>
         </div>
+      ) : null}
+
+      {showBulkModal ? (
+        <PagoColegioBulkModal
+          escrituraIds={[...selectedIds]}
+          onClose={() => setShowBulkModal(false)}
+          onSuccess={() => setSelectedIds(new Set())}
+        />
       ) : null}
     </div>
   );

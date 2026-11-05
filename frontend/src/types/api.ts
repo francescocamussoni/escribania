@@ -47,6 +47,22 @@ export interface EscrituraUpdate {
   usd_value?: string;
   dolar_mep?: string;
   dolar_nacion?: string;
+  lineas_deshabilitadas?: string[];
+}
+
+export type FacturaLineaSeccion =
+  | "honorarios"
+  | "honorarios_varios"
+  | "impuestos"
+  | "gastos_admin";
+
+export interface FacturaLineaItem {
+  key: string;
+  label: string;
+  monto: string;
+  monto_efectivo: string;
+  habilitada: boolean;
+  seccion: FacturaLineaSeccion;
 }
 
 export interface FacturaPrincipalResponse {
@@ -90,6 +106,9 @@ export interface FacturaPrincipalResponse {
   iva: string;
   total_factura: string;
   updated_at: string;
+  lineas_deshabilitadas?: string[];
+  lineas?: FacturaLineaItem[];
+  total_impuestos_efectivo?: string;
 }
 
 /** @deprecated Replaced by PagoCliente / PagoColegio in feature 003 */
@@ -126,7 +145,7 @@ export interface PagoClienteResponse {
   created_at: string;
 }
 
-export type ImputacionPagoColegio = "total_impuestos" | "honorarios_varios" | "otro";
+export type TipoPagoEscribania = "colegio" | "otros";
 
 export type PlazoColegioEstado = "no_aplica" | "pendiente" | "vencido" | "pagado";
 
@@ -146,7 +165,7 @@ export interface PagoColegioInput {
   monto: string;
   fecha: string;
   concepto?: string;
-  imputacion: ImputacionPagoColegio;
+  tipo?: TipoPagoEscribania;
 }
 
 export interface PagoColegioResponse {
@@ -155,8 +174,42 @@ export interface PagoColegioResponse {
   monto: string;
   fecha: string;
   concepto: string;
-  imputacion: ImputacionPagoColegio;
+  tipo: TipoPagoEscribania;
   created_at: string;
+}
+
+export type PagoColegioBulkMotivoNoElegible = "cerrada" | "sin_pendiente";
+
+export interface PagoColegioBulkPreviewRequest {
+  escritura_ids: string[];
+}
+
+export interface PagoColegioBulkPreviewItem {
+  escritura_id: string;
+  escritura_nombre: string;
+  pendiente: string;
+  elegible: boolean;
+  motivo?: PagoColegioBulkMotivoNoElegible | null;
+}
+
+export interface PagoColegioBulkPreviewResponse {
+  items: PagoColegioBulkPreviewItem[];
+  total_propuesto: string;
+}
+
+export interface PagoColegioBulkItemInput {
+  escritura_id: string;
+  monto: string;
+}
+
+export interface PagoColegioBulkRequest {
+  fecha: string;
+  items: PagoColegioBulkItemInput[];
+}
+
+export interface PagoColegioBulkResponse {
+  pagos: PagoColegioResponse[];
+  total: string;
 }
 
 export interface EscrituraResponse {
@@ -357,6 +410,8 @@ export interface EmpleadoResponse {
 
 export type LibroOrigen = "honorario" | "impuesto" | "extraordinario";
 
+export type TipoPagoLibroSalida = "colegio" | "otros";
+
 export interface LibroLineaResponse {
   escritura_id: string | null;
   escritura_nombre: string | null;
@@ -364,6 +419,7 @@ export interface LibroLineaResponse {
   monto: string;
   fecha_pago: string;
   origen?: LibroOrigen;
+  tipo_pago?: TipoPagoLibroSalida | null;
   tipo_impuesto?: TipoImpuesto | null;
   gasto_extraordinario_id?: string | null;
 }

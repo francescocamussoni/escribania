@@ -398,6 +398,27 @@ input {
   grid-template-columns: 1.4fr 1fr 0.75fr 0.9fr 1fr 1fr 1fr 1fr 0.85fr;
 }
 
+.escritura-list--selectable.escritura-list--saldo .escritura-list__header,
+.escritura-list--selectable.escritura-list--saldo .escritura-list__row {
+  grid-template-columns: 2.5rem 1.3fr 1fr 0.75fr 0.9fr 1fr 1fr 1fr 1fr 0.85fr;
+}
+
+.escritura-list__checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.escritura-list__checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.escritura-list__checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
 .escritura-list__sortable {
   background: none;
   border: none;
@@ -795,6 +816,78 @@ input {
   box-shadow: 0 16px 40px rgba(22, 33, 62, 0.2);
 }
 
+.modal-card--wide {
+  width: min(100%, 760px);
+}
+
+.modal-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.bulk-pago-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.bulk-pago-table {
+  border: 1px solid #e8edf5;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.bulk-pago-table__header,
+.bulk-pago-table__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+}
+
+.bulk-pago-table__header {
+  background: #f4f6fb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5b6477;
+}
+
+.bulk-pago-table__row {
+  border-top: 1px solid #e8edf5;
+}
+
+.bulk-pago-table__nombre {
+  font-weight: 600;
+}
+
+.bulk-pago-table__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-pago-table__monto {
+  margin: 0;
+}
+
+.bulk-pago-form__total {
+  margin: 0;
+  text-align: right;
+}
+
+.escrituras-page__bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: #eef4ff;
+  border: 1px solid #c5d7f5;
+  border-radius: 0.5rem;
+}
+
 .modal-card h2 {
   margin-top: 0;
 }
@@ -837,6 +930,10 @@ input {
 
 .gasto-form__grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gasto-form__grid .field--full {
+  grid-column: 1 / -1;
 }
 
 .escritura-form,
@@ -962,6 +1059,33 @@ input {
 
 .factura-row--gastos-admin.factura-row--subtotal {
   background: #e2f3ed;
+}
+
+.factura-row--disabled {
+  opacity: 0.55;
+}
+
+.factura-row--disabled .factura-row__label span,
+.factura-row--disabled > span:first-child {
+  text-decoration: line-through;
+}
+
+.factura-row__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.factura-row__label input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.factura-row__label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
 }
 
 .factura-row--total-final {
@@ -1288,6 +1412,10 @@ input {
 
 .libro-table__grid--deudas {
   grid-template-columns: 2fr 1fr 1fr 1fr;
+}
+
+.libro-table__grid--salida {
+  grid-template-columns: 1fr 2fr 1fr 1.5fr 1fr;
 }
 
 .libro-table {

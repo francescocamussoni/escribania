@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: Escribanía Platform — API Delta (feature 009-pagos-colegio-factura)
+  description: |
+    Tipos Colegio/Otros en pagos de escribanía, líneas de factura habilitables,
+    Libro de Salida exclusivo de pagos_colegio, y pago masivo al Colegio.
+    Supersede imputación de feature 008.
+  version: 0.9.0
+
+servers:
+  - url: /api/v1
+
+components:
+  schemas:
+
+    TipoPagoEscribania:
+      type: string
+      enum:
+        - colegio
+        - otros
+      description: |
+        colegio — Pago al colegio de escribanos (Total impuestos); afecta plazo.
+        otros — Comodín con detalle obligatorio; no afecta plazo.
+
+    FacturaLineaItem:
+      type: object
+      required:
+        - key
+        - label
+        - monto
+        - monto_efectivo
+        - habilitada
+        - seccion
+      properties:
+        key:
+          type: string
+          example: municipio
+        label:
+          type: string
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Monto canónico calculado
+        monto_efectivo:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+          description: Monto si habilitada, else 0
+        habilitada:
+          type: boolean
+        seccion:
+          type: string
+          enum:
+            - honorarios
+            - honorarios_varios
+            - impuestos
+            - gastos_admin
+
+    FacturaPrincipalResponse:
+      type: object
+      description: Delta fields on existing factura payload
+      properties:
+        lineas_deshabilitadas:
+          type: array
+          items:
+            type: string
+          default: []
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacturaLineaItem'
+        total_impuestos_efectivo:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+
+    EscrituraUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+        usd_value:
+          type: string
+        dolar_mep:
+          type: string
+        dolar_nacion:
+          type: string
+        escribano_id:
+          type: string
+          format: uuid
+        lineas_deshabilitadas:
+          type: array
+          items:
+            type: string
+          description: Keys a deshabilitar; al menos una línea debe quedar habilitada
+
+    PagoColegioInput:
+      type: object
+      additionalProperties: false
+      required:
+        - monto
+        - fecha
+        - tipo
+      properties:
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        fecha:
+          type: string
+          format: date
+        tipo:
+          $ref: '#/components/schemas/TipoPagoEscribania'
+          default: colegio
+        concepto:
+          type: string
+          maxLength: 500
+          default: ""
+          description: Obligatorio no vacío si tipo=otros
+
+    PagoColegioResponse:
+      type: object
+      required:
+        - id
+        - escritura_id
+        - monto
+        - fecha
+        - tipo
+        - concepto
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+        fecha:
+          type: string
+          format: date
+        tipo:
+          $ref: '#/components/schemas/TipoPagoEscribania'
+        concepto:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PagoColegioBulkPreviewRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - escritura_ids
+      properties:
+        escritura_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+
+    PagoColegioBulkPreviewItem:
+      type: object
+      required:
+        - escritura_id
+        - escritura_nombre
+        - pendiente
+        - elegible
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        escritura_nombre:
+          type: string
+        pendiente:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+        elegible:
+          type: boolean
+        motivo:
+          type: string
+          nullable: true
+          enum:
+            - cerrada
+            - sin_pendiente
+            - null
+
+    PagoColegioBulkPreviewResponse:
+      type: object
+      required:
+        - items
+        - total_propuesto
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PagoColegioBulkPreviewItem'
+        total_propuesto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+
+    PagoColegioBulkItemInput:
+      type: object
+      additionalProperties: false
+      required:
+        - escritura_id
+        - monto
+      properties:
+        escritura_id:
+          type: string
+          format: uuid
+        monto:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+
+    PagoColegioBulkRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - fecha
+        - items
+      properties:
+        fecha:
+          type: string
+          format: date
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PagoColegioBulkItemInput'
+
+    PagoColegioBulkResponse:
+      type: object
+      required:
+        - pagos
+        - total
+      properties:
+        pagos:
+          type: array
+          items:
+            $ref: '#/components/schemas/PagoColegioResponse'
+        total:
+          type: string
+          pattern: '^\d+(\.\d{1,2})?$'
+
+  responses:
+    ValidationError:
+      description: Validación fallida (detalle otros vacío, sin líneas habilitadas, etc.)
+
+paths:
+
+  /escrituras/{escritura_id}/pagos-colegio:
+  post:
+    summary: Registrar pago de la escribanía (Colegio u Otros)
+    parameters:
+      - name: escritura_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PagoColegioInput'
+    responses:
+      '201':
+        description: Pago creado
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoColegioResponse'
+      '400':
+        $ref: '#/components/responses/ValidationError'
+      '404':
+        description: Escritura no encontrada
+      '409':
+        description: Escritura cerrada
+
+  /escrituras/pagos-colegio/bulk/preview:
+    post:
+      summary: Preview de pago masivo al Colegio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoColegioBulkPreviewRequest'
+      responses:
+        '200':
+          description: Montos propuestos por escritura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoColegioBulkPreviewResponse'
+
+  /escrituras/pagos-colegio/bulk:
+    post:
+      summary: Confirmar pago masivo al Colegio (fecha única)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagoColegioBulkRequest'
+      responses:
+        '201':
+          description: Pagos creados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagoColegioBulkResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /libros/salida:
+    get:
+      summary: Libro de Salida (solo pagos_colegio)
+      description: |
+        Delta: excluye pagos_impuesto_escribania y gastos_extraordinarios.
+        Líneas incluyen tipo_pago y concepto (detalle para otros).
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: mes
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Libro de salida del período
